@@ -21,12 +21,12 @@ manual step. Anything here is deliberate; nothing here is a silent gap.
   timeline, not a phase-play corpus. The generic analyst CSV is the only route
   to real phase data, which is why it is a first-class ingest path.
 
-- **ESPN rejects a descriptive User-Agent.** Requests carrying
-  `ruck/0.1 (...)` get an Akamai `Access Denied`; the same request with a
-  browser-style UA succeeds. `ruck.ingest.http` therefore sends a
-  browser-style UA with the project name and contact appended, and the UA is
-  overridable with `RUCK_USER_AGENT`. Rate limiting (1 req/sec, backoff,
-  on-disk cache) is unaffected.
+- **ESPN's edge is picky about User-Agent.** Measured against
+  `site.api.espn.com`: a bare product token (`ruck/0.1`) returns 403, and so
+  does a browser impersonation string; a product token with a contact comment
+  (`ruck/0.1 (+https://github.com/daltonoscar0/ruck)`) returns 200 reliably.
+  That is the default in `ruck.ingest.http`, overridable with
+  `RUCK_USER_AGENT`. No browser impersonation is used anywhere.
 
 - **The demo LM corpus is synthetic.** Because of the above there is no real
   phase-play corpus to train on. `ruck demo` trains on a seeded generator

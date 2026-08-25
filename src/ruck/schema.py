@@ -221,7 +221,16 @@ def coerce(df: pd.DataFrame) -> pd.DataFrame:
             out[c] = pd.NA
     out = out[list(EVENT_COLUMNS)]
     for c, dt in _DTYPES.items():
-        out[c] = out[c].astype(dt)
+        if dt == "float64":
+            # to_numeric turns pd.NA into NaN, which plain float64 can hold;
+            # a direct astype cannot.
+            out[c] = pd.to_numeric(out[c], errors="coerce").astype("float64")
+        elif dt == "Int64":
+            out[c] = pd.to_numeric(out[c], errors="coerce").astype("Int64")
+        elif dt == "boolean":
+            out[c] = out[c].map(lambda v: pd.NA if pd.isna(v) else bool(v)).astype("boolean")
+        else:
+            out[c] = out[c].astype(dt)
     return out
 
 
