@@ -44,9 +44,18 @@ packages = ["src/ruck"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-# Vendored audit fixtures are deliberately-broken research code. They are audit
-# input, not source, and are never imported.
-extend-exclude = ["demo/audit_fixtures"]
+# Audit *input*, not source: vendored third-party snapshots and the
+# deliberately-broken fixture the checks are tested against. Neither is ever
+# imported, and `ruff --fix` must not quietly repair the leaks in them.
+# force-exclude so the rule holds even when a path is passed explicitly.
+# `demo/expected` is generated output; its fenced code blocks are quoted from
+# audited repositories and from the purge list, not written here.
+extend-exclude = [
+    "demo/audit_fixtures",
+    "demo/expected",
+    "tests/fixtures/leaky_workload",
+]
+force-exclude = true
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
