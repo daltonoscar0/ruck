@@ -79,7 +79,9 @@ def _sniff(text: str) -> str:
     path = Path(text)
     if path.suffix.lower() in {".parquet", ".pq"}:
         return "rugbypy"
-    if path.exists() and path.suffix.lower() == ".csv":
+    # pandas decompresses by extension, so a .csv.gz is just a CSV.
+    suffixes = [s.lower() for s in path.suffixes]
+    if path.exists() and (".csv" in suffixes):
         # A rugbypy summary export is still a CSV; let the rugbypy loader own it
         # so the error message is the useful one.
         try:

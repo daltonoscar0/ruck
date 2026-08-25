@@ -21,8 +21,13 @@ ESPN_CACHE = FIXTURES / "espn_cache"
 
 @pytest.mark.parametrize(
     ("raw", "expected"),
-    [("Ball Carry", "ball_carry"), ("KNOCK-ON", "knock_on"), ("  pick & go ", "pick_go"),
-     ("Cañas", "canas"), ("22m restart", "22m_restart")],
+    [
+        ("Ball Carry", "ball_carry"),
+        ("KNOCK-ON", "knock_on"),
+        ("  pick & go ", "pick_go"),
+        ("Cañas", "canas"),
+        ("22m restart", "22m_restart"),
+    ],
 )
 def test_fold_is_deterministic_and_punctuation_insensitive(raw, expected):
     assert fold(raw) == expected
@@ -31,9 +36,15 @@ def test_fold_is_deterministic_and_punctuation_insensitive(raw, expected):
 
 @pytest.mark.parametrize(
     ("raw", "action"),
-    [("Pick & Go", "carry"), ("Breakdown", "ruck"), ("box kick", "kick"),
-     ("Line-Out", "lineout"), ("knock on", "knock_on"), ("Yellow Card", "card"),
-     ("driving maul", "maul")],
+    [
+        ("Pick & Go", "carry"),
+        ("Breakdown", "ruck"),
+        ("box kick", "kick"),
+        ("Line-Out", "lineout"),
+        ("knock on", "knock_on"),
+        ("Yellow Card", "card"),
+        ("driving maul", "maul"),
+    ],
 )
 def test_action_aliases_fold_onto_the_canonical_vocabulary(raw, action):
     assert map_action(raw)[0] == action
@@ -51,8 +62,14 @@ def test_a_canonical_label_carries_no_redundant_subtype():
 
 @pytest.mark.parametrize(
     ("raw", "outcome"),
-    [("Successful", "complete"), ("quick ball", "retained"), ("Turnover Lost", "lost"),
-     ("out", "into_touch"), (None, "unknown"), ("gibberish", "unknown")],
+    [
+        ("Successful", "complete"),
+        ("quick ball", "retained"),
+        ("Turnover Lost", "lost"),
+        ("out", "into_touch"),
+        (None, "unknown"),
+        ("gibberish", "unknown"),
+    ],
 )
 def test_outcome_aliases(raw, outcome):
     assert map_outcome(raw) == outcome
@@ -77,9 +94,7 @@ def test_mini_match_loads_with_mixed_case_and_aliased_labels():
     events, report = load_csv(FIXTURES / "mini_match.csv", competition="URC", season="2024")
     assert report.events_out == 13
     assert not report.dropped
-    assert events["type"].tolist()[7:] == [
-        "lineout", "carry", "ruck", "carry", "ruck", "knock_on"
-    ]
+    assert events["type"].tolist()[7:] == ["lineout", "carry", "ruck", "carry", "ruck", "knock_on"]
     assert events["competition"].unique().tolist() == ["URC"]
 
 
@@ -149,9 +164,7 @@ def test_unmapped_actions_are_counted_not_dropped(tmp_path):
 def test_out_of_range_rows_are_dropped_and_reported(tmp_path):
     path = tmp_path / "wild.csv"
     path.write_text(
-        "t,team,action,x,y,phase,outcome\n"
-        "0,A,carry,50,35,0,retained\n"
-        "3,A,carry,-40,35,0,retained\n"
+        "t,team,action,x,y,phase,outcome\n0,A,carry,50,35,0,retained\n3,A,carry,-40,35,0,retained\n"
     )
     events, report = load_csv(path)
     assert len(events) == 1
@@ -238,8 +251,15 @@ def test_fetcher_default_user_agent_is_descriptive_not_a_browser():
 def test_rugbypy_summary_frame_refuses_to_pretend_it_has_events(tmp_path):
     path = tmp_path / "team_stats.csv"
     pd.DataFrame(
-        [{"team": "Munster", "match_id": "1", "tackles": 140, "rucks_won": 88,
-          "metres_carried": 402}]
+        [
+            {
+                "team": "Munster",
+                "match_id": "1",
+                "tackles": 140,
+                "rucks_won": 88,
+                "metres_carried": 402,
+            }
+        ]
     ).to_csv(path, index=False)
     with pytest.raises(NoEventDataError, match="team-stats"):
         load_rugbypy(path)
@@ -248,8 +268,17 @@ def test_rugbypy_summary_frame_refuses_to_pretend_it_has_events(tmp_path):
 def test_rugbypy_event_shaped_frame_loads(tmp_path):
     path = tmp_path / "tagged.csv"
     pd.DataFrame(
-        [{"t": 0, "team": "Munster", "action": "lineout", "x": 40, "y": 20, "phase": 0,
-          "outcome": "won"}]
+        [
+            {
+                "t": 0,
+                "team": "Munster",
+                "action": "lineout",
+                "x": 40,
+                "y": 20,
+                "phase": 0,
+                "outcome": "won",
+            }
+        ]
     ).to_csv(path, index=False)
     events, report = load_rugbypy(path)
     assert len(events) == 1
@@ -258,9 +287,19 @@ def test_rugbypy_event_shaped_frame_loads(tmp_path):
 
 def test_rugbypy_match_context():
     frame = pd.DataFrame(
-        [{"match_id": "9", "competition": "Six Nations", "season": "2024",
-          "home_team": "Italy", "away_team": "England", "home_score": 24, "away_score": 27,
-          "venue": "Stadio Olimpico", "date": "2024-02-03"}]
+        [
+            {
+                "match_id": "9",
+                "competition": "Six Nations",
+                "season": "2024",
+                "home_team": "Italy",
+                "away_team": "England",
+                "home_score": 24,
+                "away_score": 27,
+                "venue": "Stadio Olimpico",
+                "date": "2024-02-03",
+            }
+        ]
     )
     context = match_context(frame)
     assert context.home_team == "Italy"
@@ -278,8 +317,9 @@ def test_load_sniffs_a_generic_csv():
 
 def test_load_sniffs_a_summary_csv_and_gives_the_useful_error(tmp_path):
     path = tmp_path / "summary.csv"
-    pd.DataFrame([{"team": "A", "match_id": "1", "tackles": 1, "rucks_won": 1,
-                   "metres_carried": 1}]).to_csv(path, index=False)
+    pd.DataFrame(
+        [{"team": "A", "match_id": "1", "tackles": 1, "rucks_won": 1, "metres_carried": 1}]
+    ).to_csv(path, index=False)
     with pytest.raises(NoEventDataError):
         load(path)
 

@@ -69,9 +69,7 @@ def resolve_league(league: str) -> str:
     raise ValueError(f"unknown league {league!r}; try one of {', '.join(sorted(LEAGUES))} or an id")
 
 
-def list_matches(
-    league: str, dates: str, fetcher: Fetcher | None = None
-) -> list[dict[str, str]]:
+def list_matches(league: str, dates: str, fetcher: Fetcher | None = None) -> list[dict[str, str]]:
     """List matches on a date or date range (``YYYYMMDD`` or ``YYYYMMDD-YYYYMMDD``)."""
     fetcher = fetcher or Fetcher()
     payload = fetcher.get_json(f"{SITE_API}/{resolve_league(league)}/scoreboard", {"dates": dates})
@@ -185,9 +183,7 @@ def _match_context(summary: dict[str, Any], event_id: str) -> dict[str, Any]:
     }
 
 
-def _map_play(
-    play: dict[str, Any], context: dict[str, Any], report: LoadReport
-) -> dict[str, Any]:
+def _map_play(play: dict[str, Any], context: dict[str, Any], report: LoadReport) -> dict[str, Any]:
     label = str((play.get("type") or {}).get("text", "")).strip()
     known = PLAY_TYPES.get(label.lower())
     if known is None:

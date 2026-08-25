@@ -117,6 +117,7 @@ def load_csv(
     path = Path(path)
     raw = pd.read_csv(path)
     report = LoadReport(source=f"csv:{path.name}", rows_in=len(raw))
+    stem = path.name.split(".")[0]
 
     resolved = resolve_columns(list(raw.columns))
     missing = [c for c in REQUIRED if c not in resolved]
@@ -156,7 +157,7 @@ def load_csv(
             lambda v: None if pd.isna(v) else fold(v) in {"1", "true", "y", "yes", "t"}
         )
 
-    out["match_id"] = _fill(out, "match_id", match_id or path.stem)
+    out["match_id"] = _fill(out, "match_id", match_id or stem)
     out["competition"] = _fill(out, "competition", competition)
     out["season"] = _fill(out, "season", season)
     if "period" not in out.columns:
@@ -207,9 +208,11 @@ def _apply_coordinates(df: pd.DataFrame, mode: str, report: LoadReport) -> pd.Da
         df[c] = pd.to_numeric(df[c], errors="coerce")
 
     if mode == "auto":
-        y_values = pd.concat([df[c] for c in have if c.endswith("y")], ignore_index=True) if any(
-            c.endswith("y") for c in have
-        ) else pd.Series(dtype=float)
+        y_values = (
+            pd.concat([df[c] for c in have if c.endswith("y")], ignore_index=True)
+            if any(c.endswith("y") for c in have)
+            else pd.Series(dtype=float)
+        )
         y_max = float(y_values.max()) if len(y_values.dropna()) else 0.0
         mode = "percent" if y_max > PITCH_WIDTH else "metres"
         report.notes.append(f"coordinates read as {mode} (max y = {y_max:.1f})")

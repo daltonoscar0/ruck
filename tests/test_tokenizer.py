@@ -51,8 +51,18 @@ def test_there_are_eighteen_zones():
 
 @pytest.mark.parametrize(
     ("phase", "bucket"),
-    [(0, "0"), (1, "1"), (3, "3"), (4, "4-5"), (5, "4-5"), (6, "6-8"), (8, "6-8"), (9, "9+"),
-     (25, "9+"), (None, "?")],
+    [
+        (0, "0"),
+        (1, "1"),
+        (3, "3"),
+        (4, "4-5"),
+        (5, "4-5"),
+        (6, "6-8"),
+        (8, "6-8"),
+        (9, "9+"),
+        (25, "9+"),
+        (None, "?"),
+    ],
 )
 def test_phase_buckets(phase, bucket):
     assert phase_bucket(phase) == bucket
@@ -68,8 +78,19 @@ def test_token_backoff_levels_render_as_expected():
 
 def test_token_of_reads_a_canonical_row():
     frame = coerce(
-        pd.DataFrame([{"match_id": "m", "t": 0.0, "type": "carry", "x": 80.0, "y": 35.0,
-                       "phase": 2, "outcome": "retained"}])
+        pd.DataFrame(
+            [
+                {
+                    "match_id": "m",
+                    "t": 0.0,
+                    "type": "carry",
+                    "x": 80.0,
+                    "y": 35.0,
+                    "phase": 2,
+                    "outcome": "retained",
+                }
+            ]
+        )
     )
     assert str(token_of(frame.iloc[0])) == "carry|opp22:M|2|retained"
 

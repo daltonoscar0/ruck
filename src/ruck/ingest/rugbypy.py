@@ -28,9 +28,7 @@ class NoEventDataError(RuntimeError):
 
 
 #: Columns that identify a rugbypy `fetch_match_details` frame.
-MATCH_DETAIL_COLUMNS = frozenset(
-    {"match_id", "home_team", "away_team", "home_score", "away_score"}
-)
+MATCH_DETAIL_COLUMNS = frozenset({"match_id", "home_team", "away_team", "home_score", "away_score"})
 
 #: Columns that identify a rugbypy `fetch_team_stats` frame.
 TEAM_STAT_COLUMNS = frozenset({"team", "match_id", "tackles", "rucks_won", "metres_carried"})

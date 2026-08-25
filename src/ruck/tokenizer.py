@@ -72,8 +72,11 @@ def zone_of(x: float | None, y: float | None) -> str:
     Bins are half-open, ``[lo, hi)``: a carry taken exactly on the 22 is in
     the band above it, not below.
     """
-    if x is None or y is None or (isinstance(x, float) and np.isnan(x)) or (
-        isinstance(y, float) and np.isnan(y)
+    if (
+        x is None
+        or y is None
+        or (isinstance(x, float) and np.isnan(x))
+        or (isinstance(y, float) and np.isnan(y))
     ):
         return UNKNOWN_ZONE
     xi = bisect_right(X_EDGES, float(x))

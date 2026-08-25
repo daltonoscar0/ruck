@@ -26,17 +26,41 @@ def test_empty_frame_has_canonical_columns_in_order():
 def test_sportio_columns_come_first():
     # Downstream suite tools read the canonical block positionally.
     assert EVENT_COLUMNS[:19] == (
-        "match_id", "competition", "season", "team_id", "team", "player_id", "player",
-        "t", "period", "type", "subtype", "x", "y", "end_x", "end_y", "outcome",
-        "pressure", "body_part", "extra",
+        "match_id",
+        "competition",
+        "season",
+        "team_id",
+        "team",
+        "player_id",
+        "player",
+        "t",
+        "period",
+        "type",
+        "subtype",
+        "x",
+        "y",
+        "end_x",
+        "end_y",
+        "outcome",
+        "pressure",
+        "body_part",
+        "extra",
     )
 
 
 def test_event_round_trips_through_a_frame():
     events = [
         RugbyEvent(match_id="m1", t=0.0, type="restart", x=50.0, y=35.0, phase=0),
-        RugbyEvent(match_id="m1", t=4.0, type="carry", x=52.0, y=30.0, phase=0,
-                   outcome="retained", extra={"note": "off the top"}),
+        RugbyEvent(
+            match_id="m1",
+            t=4.0,
+            type="carry",
+            x=52.0,
+            y=30.0,
+            phase=0,
+            outcome="retained",
+            extra={"note": "off the top"},
+        ),
     ]
     frame = events_to_frame(events)
     assert len(frame) == 2
@@ -109,10 +133,22 @@ def test_derive_possessions_leaves_a_source_that_knows_its_own_phases_alone():
     frame = coerce(
         pd.DataFrame(
             [
-                {"match_id": "m", "t": 0.0, "team": "A", "type": "lineout", "phase": 0,
-                 "possession_id": 7},
-                {"match_id": "m", "t": 1.0, "team": "A", "type": "ruck", "phase": 9,
-                 "possession_id": 7},
+                {
+                    "match_id": "m",
+                    "t": 0.0,
+                    "team": "A",
+                    "type": "lineout",
+                    "phase": 0,
+                    "possession_id": 7,
+                },
+                {
+                    "match_id": "m",
+                    "t": 1.0,
+                    "team": "A",
+                    "type": "ruck",
+                    "phase": 9,
+                    "possession_id": 7,
+                },
             ]
         )
     )

@@ -48,9 +48,9 @@ class Fetcher:
     min_interval: float = MIN_INTERVAL_SECONDS
     timeout: float = 30.0
     max_retries: int = 4
-    user_agent: str = field(default_factory=lambda: os.environ.get(
-        "RUCK_USER_AGENT", DEFAULT_USER_AGENT
-    ))
+    user_agent: str = field(
+        default_factory=lambda: os.environ.get("RUCK_USER_AGENT", DEFAULT_USER_AGENT)
+    )
     session: requests.Session | None = None
 
     def __post_init__(self) -> None:
