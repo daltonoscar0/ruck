@@ -230,5 +230,6 @@ TODO.md            what is known-incomplete and why
 
 ## Licence
 
-MIT. Vendored audit fixtures under `demo/audit_fixtures/` keep their upstream
-licences; see the `SOURCE.md` beside each.
+MIT, see [`LICENSE`](LICENSE). Vendored audit fixtures under
+`demo/audit_fixtures/` keep their upstream licences; see the `SOURCE.md` beside
+each.
