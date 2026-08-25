@@ -1,0 +1,92 @@
+{
+  "generated_by": "scripts/train_demo_model.py",
+  "data": {
+    "synthetic": true,
+    "generator": "ruck.demo_data.generate",
+    "matches": 80,
+    "seed": 20240203,
+    "train_matches": 64,
+    "val_matches": 8,
+    "test_matches": 8,
+    "train_events": 71431,
+    "val_events": 9206,
+    "test_events": 8847
+  },
+  "tokenizer": {
+    "vocab_size": 1986,
+    "test_coverage": {
+      "full": 0.9979654120040692,
+      "no_phase": 0.0019215553294902226,
+      "action_outcome": 0.00011303266644060134,
+      "action_only": 0.0,
+      "unk": 0.0
+    }
+  },
+  "model": {
+    "vocab_size": 1986,
+    "d_model": 128,
+    "n_layers": 4,
+    "n_heads": 4,
+    "d_ff": 512,
+    "max_len": 256,
+    "dropout": 0.1,
+    "tie_weights": true,
+    "n_params": 1080320
+  },
+  "training": {
+    "epochs_run": 38,
+    "best_epoch": 33,
+    "best_val_perplexity": 3.7542661196974656,
+    "seconds": 509.7,
+    "truncated_sequences": 0,
+    "device": "mps",
+    "platform": "macOS-26.3.1-arm64-arm-64bit"
+  },
+  "perplexity": {
+    "transformer": {
+      "perplexity": 3.744031977264939,
+      "nats_per_token": 1.3201630995150202,
+      "n_tokens": 9584
+    },
+    "bigram": {
+      "perplexity": 9.598946161112663,
+      "nats_per_token": 2.2616533175639892,
+      "n_tokens": 9584
+    },
+    "unigram": {
+      "perplexity": 478.94731826800336,
+      "nats_per_token": 6.171590608623338,
+      "n_tokens": 9584
+    }
+  },
+  "downstream": {
+    "task": "points within 3 phases",
+    "results": {
+      "base_rate": {
+        "name": "base rate",
+        "roc_auc": 0.5,
+        "average_precision": 0.09801153076832568,
+        "brier": 0.08844206131345761,
+        "n": 8499,
+        "positive_rate": 0.09801153076832568
+      },
+      "gbm": {
+        "name": "GBM on hand features",
+        "roc_auc": 0.8852065480509972,
+        "average_precision": 0.4755964500863949,
+        "brier": 0.06696305205858998,
+        "n": 8499,
+        "positive_rate": 0.09801153076832568
+      },
+      "lm_probe": {
+        "name": "LM probe (frozen)",
+        "roc_auc": 0.8601352098366087,
+        "average_precision": 0.40358065260310366,
+        "brier": 0.06902536749839783,
+        "n": 8499,
+        "positive_rate": 0.09801153076832568
+      }
+    }
+  },
+  "total_seconds": 643.7
+}

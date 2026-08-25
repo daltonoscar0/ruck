@@ -13,6 +13,7 @@ data/raw/
 
 # Model checkpoints and generated reports.
 runs/
+
+# Generated reports, except the checked-in reference outputs.
 *.pdf
-*.pt
 !demo/expected/*.pdf

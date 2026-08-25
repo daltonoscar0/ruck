@@ -1,0 +1,128 @@
+#  PROACTAI - AI-DRIVEN SPORTS INJURY PREDICTION USING DEEP LEARNING
+
+---
+
+##  PROJECT OVERVIEW
+
+ProActAI is an Artificial Intelligence–based system designed to predict potential injury risks in volleyball players by analyzing human movement patterns using deep learning and time-series modeling.
+
+The system processes sports videos using pose estimation techniques to extract skeletal keypoints and transforms them into biomechanical features such as joint angles, posture alignment, torso bend, and movement velocity. These features are structured into temporal sequences and analyzed using Long Short-Term Memory (LSTM) networks.
+
+It is a **Supervised Deep Learning Classification Problem** because:
+
+- The dataset contains labeled SAFE and UNSAFE movement sequences  
+- The output is a binary classification (Safe / Unsafe)  
+- The system produces a probability-based injury risk score  
+
+The goal of this project is to build a reliable AI-driven framework that can proactively identify unsafe sports movements and assist in injury prevention.
+
+---
+
+##  OBJECTIVES
+
+The objective of this project is to develop an AI-driven system that analyzes sports movements using pose estimation and deep learning to predict potential injury risks. The system extracts skeletal keypoints from video input, computes biomechanical features such as joint angles and posture alignment, and models temporal movement patterns using LSTM networks. By classifying actions as safe or unsafe and generating a probability-based risk score, the project aims to provide early detection of injury-prone movements and support safer training practices.
+---
+
+##  PROBLEM STATEMENT
+
+Sports injuries in high-intensity games like volleyball often occur due to improper posture, unstable landings, excessive joint load, or incorrect movement mechanics. These risky patterns are usually subtle and difficult to detect through manual observation. Most traditional injury prevention methods rely on subjective analysis by coaches or medical diagnosis after an injury has already occurred, making them reactive rather than proactive. There is a need for an automated, data-driven system that can continuously analyze movement patterns and detect unsafe actions before they lead to serious injuries.
+
+Traditional injury prevention systems rely on:
+
+- Manual observation  
+- Delayed medical diagnosis  
+- Subjective assessment  
+- Post-injury treatment rather than early detection  
+
+Without a data-driven injury prediction system:
+
+- Unsafe movement patterns go unnoticed  
+- Athletes are at higher injury risk  
+- Coaches lack quantitative biomechanical insights  
+- Preventive intervention becomes reactive rather than proactive  
+
+The objective of this project is:
+
+**To develop an AI-based system that analyzes temporal pose data from sports videos and predicts potential injury risk using deep learning techniques.**
+
+By building ProActAI, the system enables:
+
+→ Early detection of unsafe actions  
+→ Quantitative injury risk estimation  
+→ Real-time feedback for safer training  
+→ Data-driven coaching decisions  
+→ Improved athlete safety and performance  
+
+
+---
+
+##  DATASET USED
+
+The dataset for this project consists of volleyball action videos categorized into SAFE and UNSAFE movement classes.
+
+The videos include three primary action types:
+
+- Attack  
+- Block  
+- Defense  
+
+Safe videos represent correct posture and biomechanically stable movements, while unsafe videos include common mistakes such as improper landing mechanics, unstable knee alignment, excessive torso bending, and incorrect joint positioning.
+
+Each video is processed frame-by-frame to extract 32 skeletal keypoints using pose estimation. From these keypoints, biomechanical features such as joint angles, posture alignment, and movement velocity are computed. The extracted features are segmented into fixed-length temporal windows for time-series modeling.
+
+To address data imbalance between safe and unsafe samples, GAN-based synthetic augmentation is applied to improve model generalization.
+
+The final processed dataset consists of structured time-series windows used for training and evaluation of the LSTM-based injury risk classifier.
+
+
+---
+
+##  PROJECT APPROACH
+
+The ProActAI system follows a structured pipeline for injury risk prediction using video-based pose analysis and deep learning.
+
+The process begins with video acquisition, where sports activity is captured either through recorded footage or live webcam input. Each video is processed frame-by-frame, and skeletal keypoints are extracted using pose estimation techniques.
+
+From the detected keypoints, biomechanical features such as joint angles, torso alignment, velocity, and posture stability metrics are computed. These features are normalized and organized into fixed-length temporal windows to preserve motion continuity.
+
+The segmented time-series windows are then fed into an LSTM-based neural network, which learns temporal dependencies and movement progression patterns. To improve robustness and handle class imbalance, GAN-based data augmentation is applied during training.
+
+Finally, the trained model classifies each window as SAFE or UNSAFE and computes a probability-based injury risk score at the video level, enabling proactive detection of risky movements.
+
+
+
+---
+
+##  PROJECT METHODOLOGY
+
+The ProActAI system follows a structured pipeline to predict injury risk from sports videos.
+
+First, sports activity videos are captured either through recorded footage or live webcam input. Each video is processed frame-by-frame, and skeletal keypoints are extracted using pose estimation techniques.
+
+From these keypoints, biomechanical features such as joint angles, torso alignment, posture balance, and movement velocity are computed. These features are normalized to ensure consistency across different athletes and recording conditions.
+
+The continuous motion data is segmented into fixed-length temporal windows to preserve movement progression. These windowed sequences are then used as inputs to a Long Short-Term Memory (LSTM) network, which learns temporal dependencies and identifies unsafe movement patterns.
+
+To improve generalization and handle class imbalance, GAN-based data augmentation is applied during training. The trained model classifies each window as SAFE or UNSAFE and generates a probability-based injury risk score at the video level.
+
+
+
+---
+
+##  SYSTEM ARCHITECTURE
+
+The overall architecture of ProActAI follows a structured pipeline integrating computer vision, feature engineering, temporal modeling, and deep learning-based classification.
+
+The system begins with video acquisition, followed by pose estimation to extract skeletal keypoints. Biomechanical features are computed from these keypoints and organized into temporal windows. These sequences are then processed using LSTM-based models to classify movements as SAFE or UNSAFE. Finally, a probability-based injury risk score is generated at the video level.
+
+
+
+![System Architecture](./Images/system_architecture.png)
+
+*Figure: Injury Prediction System Architecture*
+
+
+
+
+
+
