@@ -248,3 +248,22 @@ def test_find_model_dir_explains_itself_when_there_is_no_model(tmp_path, monkeyp
     monkeypatch.setattr("ruck.analyze.BUNDLED_MODEL_DIR", tmp_path / "absent")
     with pytest.raises(FileNotFoundError, match="train_demo_model"):
         find_model_dir()
+
+
+@needs_model
+def test_compare_writes_an_overlay_naming_both_matches(tmp_path):
+    import pandas as pd
+
+    corpus = pd.read_csv(DEMO / "model" / "corpus.csv.gz")
+    paths = []
+    for index, match_id in enumerate(sorted(corpus["match_id"].unique())[:2]):
+        path = tmp_path / f"m{index}.csv"
+        corpus[corpus["match_id"] == match_id].to_csv(path, index=False)
+        paths.append(str(path))
+
+    out = tmp_path / "overlay.pdf"
+    assert main(["compare", *paths, "--out", str(out), "--device", "cpu"]) == 0
+    raw = out.read_bytes()
+    assert raw.startswith(b"%PDF")
+    # Each column is named for the match behind it, not "All teams" twice.
+    assert b"All teams" not in raw

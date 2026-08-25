@@ -153,6 +153,12 @@ def _compare(args: argparse.Namespace) -> int:
         )
 
     series = [(analysis.context.title(), analysis.timeline) for analysis in analyses]
+    # Two columns both headed "All teams" tell the reader nothing; name each
+    # side by the match it came from, or by the team it was focused on.
+    for analysis in analyses:
+        if analysis.context.focus_team is None:
+            analysis.match_shape.team = analysis.context.title()
+
     path = render_comparison(
         series=series,
         shapes=[analysis.match_shape for analysis in analyses],
