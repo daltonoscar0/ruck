@@ -183,11 +183,30 @@ def _one_finding(index: int, finding: Finding) -> list[str]:
     return lines
 
 
+def _pick(names: set[str], preferred: tuple[str, ...], fallback: str) -> str:
+    """Choose the name to put in a code example.
+
+    Prefer the conventional spelling, then any plain lowercase name, then the
+    fallback. A purge list that suggests `groupby("Timestamp")` because that
+    was alphabetically first is not worth printing.
+    """
+    lowered = {name.lower(): name for name in names}
+    for candidate in preferred:
+        if candidate in lowered:
+            return lowered[candidate]
+    plain = sorted(name for name in names if name.islower())
+    return plain[0] if plain else (sorted(names)[0] if names else fallback)
+
+
 def _purge_list(cited: list[Finding], facts: RepoFacts) -> list[str]:
     workload = sorted(facts.workload_columns) or list(DEFAULT_GPS_COLUMNS)
     labels = sorted(facts.label_columns)
-    athletes = sorted(facts.athlete_columns)
     longest_window = _longest_window(cited)
+    athlete = _pick(
+        facts.athlete_columns, ("player_id", "athlete_id", "player", "athlete"), "player_id"
+    )
+    date = _pick(facts.time_columns, ("date", "session_date", "day", "timestamp"), "date")
+    load = _pick(set(workload), ("total_distance", "player_load", "load"), "total_distance")
 
     lines = [
         "## Purge list — GPS workload data",
@@ -207,16 +226,8 @@ def _purge_list(cited: list[Finding], facts: RepoFacts) -> list[str]:
         "outcome. Shift by one observation before every window:",
         "",
         "```python",
-        "loads = panel.sort_values(['"
-        + (athletes[0] if athletes else "player_id")
-        + "', '"
-        + (sorted(facts.time_columns)[0] if facts.time_columns else "date")
-        + "'])",
-        "past = loads.groupby('"
-        + (athletes[0] if athletes else "player_id")
-        + "')['"
-        + (workload[0] if workload else "total_distance")
-        + "'].shift(1)",
+        f"loads = panel.sort_values(['{athlete}', '{date}'])",
+        f"past = loads.groupby('{athlete}')['{load}'].shift(1)",
         "acute = past.rolling(7, min_periods=7).sum()",
         "```",
         "",
@@ -283,9 +294,9 @@ def _purge_list(cited: list[Finding], facts: RepoFacts) -> list[str]:
         "training row, and group by athlete so the same player is not on both sides:",
         "",
         "```python",
-        "splitter = TimeSeriesSplit(n_splits=5, gap=" + str(longest_window) + ")",
+        f"splitter = TimeSeriesSplit(n_splits=5, gap={longest_window})",
         "#   plus: hold out whole athletes as well as later dates, and pass",
-        "#   groups=panel['" + (athletes[0] if athletes else "player_id") + "']",
+        f"#   groups=panel['{athlete}']",
         "```",
         "",
     ]

@@ -2,7 +2,7 @@
 
 **Target:** `/Users/oscardalton/ruck/demo/audit_fixtures`  
 **Scanned:** 25 Python files · 25 checks · ruck native checks  
-**Generated:** 2026-08-25 22:06 UTC
+**Generated:** 2026-08-25 23:22 UTC
 
 The target directory is only ever read. Files are parsed with `ast`; nothing in them is imported or executed.
 
@@ -81,7 +81,7 @@ Seed the chronic EWMA from load up to the start of the acute period, or report a
 `injury_prediction/src/train_injury_risk_lstm.py:10`
 
 ```python
-train_test_split(X, y, test_size=0.2, random_state=42, shuffle=True)
+train_test_split( X, y, test_size=0.2, random_state=42, shuffle=True )
 ```
 
 **Why this matters**
@@ -173,79 +173,21 @@ Written for a squad's GPS and session-load export: one row per athlete per sessi
 A session's own load must not appear in a feature predicting that session's outcome. Shift by one observation before every window:
 
 ```python
-loads = panel.sort_values(['player_id', '
-    Time-warp a (L, F) window by stretching/compressing in time,
-    then resample back to length L.
-    '])
-past = loads.groupby('player_id')['
-Stable TimeGAN for Volleyball sequences (pretrain + full training).
-Designed for small dataset N ~ 280 and total 1500 epochs:
- - PRETRAIN_EPOCHS = 300  (embedder+recovery)
- - GAN_EPOCHS = 1200      (full TimeGAN)
-Outputs:
- - checkpoints under /mnt/data/timegan_checkpoints/
- - final synthetic sequences at /mnt/data/synthetic_volleyball_timegan.npy
-Data file expected (already uploaded): /mnt/data/dataset_volleyball_sequence_scaled.npz
-'].shift(1)
+loads = panel.sort_values(['player_id', 'time'])
+past = loads.groupby('player_id')['load'].shift(1)
 acute = past.rolling(7, min_periods=7).sum()
 ```
 
-Columns this applies to in this repository: `
-Stable TimeGAN for Volleyball sequences (pretrain + full training).
-Designed for small dataset N ~ 280 and total 1500 epochs:
- - PRETRAIN_EPOCHS = 300  (embedder+recovery)
- - GAN_EPOCHS = 1200      (full TimeGAN)
-Outputs:
- - checkpoints under /mnt/data/timegan_checkpoints/
- - final synthetic sequences at /mnt/data/synthetic_volleyball_timegan.npy
-Data file expected (already uploaded): /mnt/data/dataset_volleyball_sequence_scaled.npz
-`, `
-live_injury_report_pytorch_final.py
-
-- 32-feature extractor matching training (17 base features + 2 vertical disp + 13 angular velocities)
-- TIMESTEPS = 30
-- Loads lstm_classifier_best.pth (state_dict)
-- Reconstructs MinMaxScaler from uploaded normalized windows (fallback) or uses --scaler if provided
-- Records webcam with visible preview, repairs keypoints, computes features, runs sliding-window inference
-- Saves annotated video, CSV, plots, and multi-page PDF with all feature graphs
-`, `  Ratio undefined — no chronic load recorded.`, `  load  `, ` not found. Upload file or change DATA_FILE path.`, `--duration`, `Acute:chronic workload ratio and related training-load metrics.
-
-Implements the two ratio methods in common use:
-
-* **Rolling average (RA)** — Hulin et al. (2014). Acute load is the mean of the
-  last ``acute`` days; chronic load the mean of the last ``chronic`` days.
-* **Exponentially weighted moving average (EWMA)** — Williams et al. (2017),
-  which weights recent sessions more heavily and does not discard the day that
-  falls out of the window.
-
-Loads are unitless: session-RPE × minutes, TRIMP, WHOOP strain, distance —
-anything monotonic in "how hard was that day". Rest days are ``0.0``, and they
-matter, so do not omit them.
-
-Pure standard library. No numpy, no pandas.
-`, `Acute:chronic workload ratio from a CSV of daily training loads.`, `Command-line interface: point it at a CSV of daily loads.`, `Distribution Comparison (PCA Reduced Features)`, `Exponentially weighted ACWR (Williams et al., 2017).
-
-    Uses the standard smoothing constant ``lambda = 2 / (N + 1)`` for each
-    window. Both EWMAs are seeded with the first day's load.
-
-    Args and returns mirror :func:`rolling_acwr`.
-    `, `Foster's training monotony: mean daily load / standard deviation.
-
-    High monotony (>2.0) means every day looks the same, which is associated
-    with worse adaptation even when total load is reasonable.
-
-    Returns ``None`` if fewer than two days are supplied, or if every day is
-    identical (zero variance makes the metric undefined rather than infinite).
-    `, and 32 more.
+Columns this applies to in this repository: `duration`, `load`.
 
 ### 2. Purge the acute window out of the chronic window
 
 Compute chronic load from the period *before* the acute one so the two share no sessions:
 
 ```python
-acute = past.rolling(7, min_periods=7).sum()
-chronic = past.shift(7).rolling(21, min_periods=21).sum() / 3  # weekly equivalent
-acwr = acute / chronic
+acute   = past.rolling(7,  min_periods=7).sum()
+chronic = past.shift(7).rolling(21, min_periods=21).sum() / 3   # weekly equivalent
+acwr    = acute / chronic
 ```
 
 Report the coupled and uncoupled ratios side by side for one season before choosing. A relationship that only exists in the coupled version is arithmetic.
@@ -256,24 +198,7 @@ The first four weeks of every athlete's record have an incomplete chronic window
 
 ### 4. Purge the outcome and everything built from it out of the feature matrix
 
-Outcome columns found in this repository: `
-Robust live injury pipeline:
-- records webcam (preview window shown)
-- extracts Mediapipe keypoints (with interpolation/filling)
-- computes 28 features in given order
-- sliding-window predictions (TIMESTEPS)
-- annotated video + CSV + plots + PDF
-- prevents NaN outputs with repair, clipping and fallbacks
-`, `
-live_injury_report_pytorch_final.py
-
-- 32-feature extractor matching training (17 base features + 2 vertical disp + 13 angular velocities)
-- TIMESTEPS = 30
-- Loads lstm_classifier_best.pth (state_dict)
-- Reconstructs MinMaxScaler from uploaded normalized windows (fallback) or uses --scaler if provided
-- Records webcam with visible preview, repairs keypoints, computes features, runs sliding-window inference
-- Saves annotated video, CSV, plots, and multi-page PDF with all feature graphs
-`, `CLASS_LABELS`, `Could not find labels/targets in .npz. Keys: `, `Injury Prediction Report`, `Injury Prediction Report (PyTorch - final)`, `Injury Risk over frames`, `Injury Risk: `, `LabelBinarizer`, `Read labels and loads from a CSV with a header row.`.
+Outcome columns found in this repository: `label`, `y`.
 
 Keep out of `X`: the outcome itself, anything derived from it (`days_since_injury`, `injury_count`, `availability`, `games_missed`) unless recomputed as of each prediction date, and any column whose value is only known once the season is over (appearances, total minutes, sessions completed). Build the feature list explicitly and assert the outcome is absent, rather than dropping by name afterwards.
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ruck.audit.astutils import (
     Module,
@@ -62,7 +62,6 @@ WORKLOAD_TOKENS: tuple[str, ...] = (
     "metres",
     "meters",
     "exertion",
-    "tri",
     "trimp",
     "session",
 )
@@ -80,6 +79,32 @@ ATHLETE_TOKENS: tuple[str, ...] = (
 #: Name fragments that mean a point in time.
 TIME_TOKENS: tuple[str, ...] = ("date", "day", "time", "week", "session_no", "timestamp")
 
+#: Methods whose string arguments are column names.
+COLUMN_TAKING_CALLS: frozenset[str] = frozenset(
+    {
+        "groupby",
+        "sort_values",
+        "set_index",
+        "reset_index",
+        "drop",
+        "dropna",
+        "drop_duplicates",
+        "merge",
+        "join",
+        "pivot",
+        "pivot_table",
+        "melt",
+        "value_counts",
+        "nunique",
+        "agg",
+        "rename",
+        "astype",
+        "read_csv",
+        "parse_dates",
+        "filter",
+    }
+)
+
 _WORD = re.compile(r"[^a-z0-9]+")
 
 
@@ -88,15 +113,47 @@ def normalise(name: object) -> str:
 
 
 def looks_like(name: object, tokens: tuple[str, ...]) -> bool:
+    """True when a folded name contains one of ``tokens``.
+
+    Short tokens have to sit on an underscore boundary. Substring matching
+    `tri` against `metrics` and `stride`, or `acl` against `dataclass`, fills
+    the purge list with function names.
+    """
     text = normalise(name)
-    return any(token in text for token in tokens)
+    for token in tokens:
+        if len(token) >= 5:
+            if token in text:
+                return True
+        elif re.search(rf"(?:^|_){re.escape(token)}(?:_|$)", text):
+            return True
+    return False
 
 
 _Y_VARIABLE = re.compile(r"^y(_|$)")
 
+#: Names that contain a label token but are plotting calls, not outcomes.
+NOT_LABELS: frozenset[str] = frozenset(
+    {
+        "xlabel",
+        "ylabel",
+        "clabel",
+        "zlabel",
+        "set_xlabel",
+        "set_ylabel",
+        "labelsize",
+        "labelpad",
+        "labelcolor",
+        "ticklabel",
+        "labelbottom",
+        "labelleft",
+    }
+)
+
 
 def is_label_name(name: object) -> bool:
     text = normalise(name)
+    if text in NOT_LABELS:
+        return False
     # `y`, `y_train`, `y_enc`, `y_resampled`: the conventional name for the
     # thing being predicted, in every shape people write it.
     if _Y_VARIABLE.match(text):
@@ -109,7 +166,12 @@ def is_workload_name(name: object) -> bool:
 
 
 def is_athlete_name(name: object) -> bool:
-    return looks_like(name, ATHLETE_TOKENS)
+    """True for a name that identifies *who*, not *how much*.
+
+    `player_load` is a GPS metric, not a grouping key, and a purge list that
+    tells you to `groupby("player_load")` has stopped being useful.
+    """
+    return looks_like(name, ATHLETE_TOKENS) and not looks_like(name, WORKLOAD_TOKENS)
 
 
 def is_time_name(name: object) -> bool:
@@ -132,6 +194,11 @@ class ModuleFacts:
     time_names: set[str]
     has_rolling: bool
     has_model_fit: bool
+    #: Names that were actually used to index a frame or read as an attribute,
+    #: as opposed to any identifier that happened to match a token. The purge
+    #: list is written from these, because it names columns to a reader who
+    #: will go looking for them.
+    column_names: set[str] = field(default_factory=set)
 
     @property
     def has_label(self) -> bool:
@@ -140,6 +207,25 @@ class ModuleFacts:
     @property
     def has_athletes(self) -> bool:
         return bool(self.athlete_names)
+
+
+#: A column name is short, has no line breaks, and reads like a name rather
+#: than a sentence. Without this, every docstring that mentions "load" ends up
+#: in the purge list as a GPS column.
+_COLUMN_LIKE = re.compile(r"^[A-Za-z][A-Za-z0-9_\- ]{0,39}$")
+
+
+def is_column_like(value: object) -> bool:
+    """True when a string literal could plausibly be a dataframe column."""
+    text = str(value)
+    if text != text.strip() or "\n" in text:
+        return False
+    # A dot means a filename or a dotted path, not a column.
+    if "." in text:
+        return False
+    if not _COLUMN_LIKE.fullmatch(text):
+        return False
+    return len(text.split()) <= 4
 
 
 def collect_facts(module: Module) -> ModuleFacts:
@@ -151,9 +237,29 @@ def collect_facts(module: Module) -> ModuleFacts:
     has_rolling = False
     has_fit = False
 
+    # Strings used to index something are columns; strings used anywhere else
+    # are prose until proven otherwise.
+    indexed: set[str] = set()
+    for node in ast.walk(module.tree):
+        if isinstance(node, ast.Subscript):
+            indexed.update(subscript_keys(node))
+        elif isinstance(node, ast.Attribute):
+            indexed.add(node.attr)
+        elif isinstance(node, ast.Call) and _called(node) in COLUMN_TAKING_CALLS:
+            # `panel.sort_values(["player_id", "date"])` names columns just as
+            # much as `panel["player_id"]` does.
+            for argument in list(node.args) + [k.value for k in node.keywords]:
+                value = literal(argument)
+                if isinstance(value, str):
+                    indexed.add(value)
+                elif isinstance(value, (list, tuple)):
+                    indexed.update(v for v in value if isinstance(v, str))
+
     for node in ast.walk(module.tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             name = node.value
+            if name not in indexed and not is_column_like(name):
+                continue
             if is_label_name(name):
                 labels.add(name)
             if is_workload_name(name):
@@ -195,6 +301,7 @@ def collect_facts(module: Module) -> ModuleFacts:
         time_names=times,
         has_rolling=has_rolling,
         has_model_fit=has_fit,
+        column_names={name for name in indexed if is_column_like(name)},
     )
 
 

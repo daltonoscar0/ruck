@@ -227,7 +227,16 @@ def python_files(root: Path, *, skip: tuple[str, ...] = ()) -> list[Path]:
     ignored.update(skip)
     out: list[Path] = []
     for path in sorted(root.rglob("*.py")):
-        if any(part in ignored for part in path.parts):
+        # Match on the path *below* the audit root only. Filtering on the whole
+        # absolute path means a repository that happens to live under a
+        # directory called `build` or `site-packages` audits to zero files —
+        # which is exactly what happens to the bundled fixtures once ruck is
+        # installed as a wheel.
+        try:
+            parts = path.relative_to(root).parts
+        except ValueError:
+            parts = path.parts
+        if any(part in ignored for part in parts):
             continue
         out.append(path)
     return out

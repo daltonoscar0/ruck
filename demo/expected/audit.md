@@ -540,7 +540,7 @@ train_test_split(X_scaled, y, test_size=0.2)
 
 **Why this matters**
 
-The file works with athlete identifiers (player_id, player_load) but no splitter is grouped by them and no `groups=` is passed. The same player appears in training and test, so part of what the model learns is that player's baseline. Squad-level scores are then optimistic for anyone new.
+The file works with athlete identifiers (player_id) but no splitter is grouped by them and no `groups=` is passed. The same player appears in training and test, so part of what the model learns is that player's baseline. Squad-level scores are then optimistic for anyone new.
 
 **Fix**
 
@@ -555,37 +555,21 @@ Written for a squad's GPS and session-load export: one row per athlete per sessi
 A session's own load must not appear in a feature predicting that session's outcome. Shift by one observation before every window:
 
 ```python
-loads = panel.sort_values(['player_id', 'Timestamp'])
-past = loads.groupby('player_id')['A deliberately broken rugby workload model.
-
-Audit input, not source. Every leak the native checks look for is in here on
-purpose, so the test suite can assert that each one fires and each one lands on
-the right line. Nothing in this file is ever imported or executed: `ruck audit`
-parses it with `ast`.
-
-Do not copy this. `demo/expected/audit.md` is ruck's report on this file.
-'].shift(1)
+loads = panel.sort_values(['player_id', 'date'])
+past = loads.groupby('player_id')['total_distance'].shift(1)
 acute = past.rolling(7, min_periods=7).sum()
 ```
 
-Columns this applies to in this repository: `A deliberately broken rugby workload model.
-
-Audit input, not source. Every leak the native checks look for is in here on
-purpose, so the test suite can assert that each one fires and each one lands on
-the right line. Nothing in this file is ever imported or executed: `ruck audit`
-parses it with `ast`.
-
-Do not copy this. `demo/expected/audit.md` is ruck's report on this file.
-`, `GPS_COLUMNS`, `acute_load`, `data/gps_panel.csv`, `high_speed_running`, `load_delta`, `load_panel`, `next_session_load`, `player_load`, `session_rpe`, `smoothed_load`, `total_distance`.
+Columns this applies to in this repository: `acute_load`, `high_speed_running`, `load_delta`, `next_session_load`, `player_load`, `session_rpe`, `smoothed_load`, `total_distance`.
 
 ### 2. Purge the acute window out of the chronic window
 
 Compute chronic load from the period *before* the acute one so the two share no sessions:
 
 ```python
-acute = past.rolling(7, min_periods=7).sum()
-chronic = past.shift(7).rolling(21, min_periods=21).sum() / 3  # weekly equivalent
-acwr = acute / chronic
+acute   = past.rolling(7,  min_periods=7).sum()
+chronic = past.shift(7).rolling(21, min_periods=21).sum() / 3   # weekly equivalent
+acwr    = acute / chronic
 ```
 
 Report the coupled and uncoupled ratios side by side for one season before choosing. A relationship that only exists in the coupled version is arithmetic.
@@ -596,7 +580,7 @@ The first four weeks of every athlete's record have an incomplete chronic window
 
 ### 4. Purge the outcome and everything built from it out of the feature matrix
 
-Outcome columns found in this repository: `days_since_injury`, `injured`, `injury_date`, `y`, `y_test`, `y_train`.
+Outcome columns found in this repository: `days_since_injury`, `injured`, `injury_date`.
 
 Keep out of `X`: the outcome itself, anything derived from it (`days_since_injury`, `injury_count`, `availability`, `games_missed`) unless recomputed as of each prediction date, and any column whose value is only known once the season is over (appearances, total minutes, sessions completed). Build the feature list explicitly and assert the outcome is absent, rather than dropping by name afterwards.
 

@@ -22,10 +22,14 @@ class RepoFacts:
     time_columns: set[str] = field(default_factory=set)
 
     def absorb(self, facts: ModuleFacts) -> None:
-        self.workload_columns |= facts.workload_names
-        self.label_columns |= facts.label_names
-        self.athlete_columns |= facts.athlete_names
-        self.time_columns |= facts.time_names
+        # Only names that were used to index a frame reach the purge list: it
+        # tells a reader which columns to change, so a function name in it is
+        # worse than useless.
+        columns = facts.column_names
+        self.workload_columns |= facts.workload_names & columns
+        self.label_columns |= facts.label_names & columns
+        self.athlete_columns |= facts.athlete_names & columns
+        self.time_columns |= facts.time_names & columns
 
 
 def audit_repo(

@@ -336,3 +336,28 @@ def test_the_vendored_fixtures_do_not_drown_the_report_in_noise():
     result, _ = audit_repo(VENDORED, use_hindsight=False)
     # Real third-party code: a handful of defensible findings, not one per line.
     assert 0 < len(result.findings) <= 20
+
+
+def test_a_repository_under_an_ignored_directory_name_still_audits(tmp_path):
+    """`site-packages`, `build` and friends are ignored *below* the audit root.
+
+    Filtering on the absolute path makes an installed wheel audit to zero
+    files, which is how this was found.
+    """
+    root = tmp_path / "site-packages" / "pkg" / "_demo"
+    root.mkdir(parents=True)
+    (root / "model.py").write_text(
+        "import pandas as pd\n\n\ndef f(panel):\n    return panel['load'].shift(-1)\n"
+    )
+    result, _ = audit_repo(root, use_hindsight=False)
+    assert result.files_scanned == 1
+    assert {f.check_id for f in result.findings} == {"LA001"}
+
+
+def test_noise_directories_below_the_root_are_still_skipped(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.py").write_text("x = 1\n")
+    (tmp_path / "build").mkdir()
+    (tmp_path / "build" / "b.py").write_text("x = 1\n")
+    result, _ = audit_repo(tmp_path, use_hindsight=False)
+    assert result.files_scanned == 1
