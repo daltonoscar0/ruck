@@ -57,12 +57,14 @@ class Style:
 
 STYLES: dict[str, Style] = {
     "Kestrels": Style("Kestrels", pass_rate=0.58, width=12.0, kick_rate=0.16, offload_rate=0.075),
-    "Ravens": Style("Ravens", pass_rate=0.32, width=6.0, kick_rate=0.15, carry_gain=4.1,
-                    ruck_retention=0.93),
+    "Ravens": Style(
+        "Ravens", pass_rate=0.32, width=6.0, kick_rate=0.15, carry_gain=4.1, ruck_retention=0.93
+    ),
     "Badgers": Style("Badgers", pass_rate=0.40, width=8.0, kick_rate=0.29, carry_gain=2.9),
     "Otters": Style("Otters", pass_rate=0.50, width=10.5, kick_rate=0.21, offload_rate=0.06),
-    "Herons": Style("Herons", pass_rate=0.36, width=7.0, kick_rate=0.25, ruck_retention=0.87,
-                    penalty_rate=0.060),
+    "Herons": Style(
+        "Herons", pass_rate=0.36, width=7.0, kick_rate=0.25, ruck_retention=0.87, penalty_rate=0.060
+    ),
     "Stags": Style("Stags", pass_rate=0.46, width=9.5, kick_rate=0.18, carry_gain=3.6),
 }
 
@@ -122,6 +124,10 @@ def generate_match(
     styles = {home: STYLES.get(home, Style(home)), away: STYLES.get(away, Style(away))}
     rows: list[dict[str, object]] = []
     score = {home: 0, away: 0}
+    # Possession ids run continuously across the match. Restarting them each
+    # half would make two unrelated passages of play share an id, and every
+    # consumer here groups by it.
+    possession_id = 0
 
     for period in (1, 2):
         clock = _Clock(rng)
@@ -130,7 +136,6 @@ def generate_match(
         in_possession = home if period == 1 else away
         start_kind = "restart"
         start_x = 50.0
-        possession_id = len([r for r in rows if r["type"] == "restart"])
 
         while clock.t < period * HALF_SECONDS:
             events, next_state = _possession(
@@ -170,6 +175,9 @@ def generate_match(
                 possession_id=possession_id,
             )
         )
+        # The whistle closes the id too, so the second half does not open on
+        # the same possession the first half ended with.
+        possession_id += 1
 
     frame = coerce(pd.DataFrame(rows)).sort_values("t", kind="stable").reset_index(drop=True)
     return frame
@@ -218,7 +226,9 @@ def _possession(
 
     emit(start_kind, "won" if start_kind in {"lineout", "scrum"} else "complete")
 
-    max_phases = 40
+    # Real multi-phase attacks top out around 25 phases; the cap stops a run of
+    # lucky rolls producing a possession no coach has ever seen.
+    max_phases = 28
     while phase < max_phases and clock.t < period * HALF_SECONDS:
         # Field position drives the choice more than anything else: teams kick
         # from their own 22 and carry inside the opposition 22.
@@ -253,11 +263,13 @@ def _possession(
         # gains much less inside the 22 than it does at halfway.
         compression = float(np.clip(1.0 - max(0.0, x - 72.0) / 46.0, 0.30, 1.0))
         gain = float(rng.normal(style.carry_gain * compression, 2.6 * compression))
-        x = float(np.clip(x + gain, 0.5, PITCH_LENGTH))
-        y = float(np.clip(y + rng.normal(0.0, 2.0), 1.0, PITCH_WIDTH - 1.0))
+        gained_x = float(np.clip(x + gain, 0.5, PITCH_LENGTH))
 
-        if x >= PITCH_LENGTH - 0.01 and rng.random() < 0.28:
-            emit("carry", "points")
+        if gained_x >= PITCH_LENGTH - 0.01 and rng.random() < 0.28:
+            # A carry is recorded where the ball carrier received it, with the
+            # position it ended at in end_x, which is how tagging tools do it.
+            emit("carry", "points", end_x=round(gained_x, 2))
+            x = gained_x
             score[team] += 5
             emit("try", "points")
             converted = rng.random() < 0.72
@@ -266,7 +278,13 @@ def _possession(
                 score[team] += 2
             return events, (opponent, "restart", 50.0)
 
-        emit("carry", "retained" if rng.random() < style.ruck_retention else "held")
+        emit(
+            "carry",
+            "retained" if rng.random() < style.ruck_retention else "held",
+            end_x=round(gained_x, 2),
+        )
+        x = gained_x
+        y = float(np.clip(y + rng.normal(0.0, 2.0), 1.0, PITCH_WIDTH - 1.0))
 
         if rng.random() < style.offload_rate:
             y = float(np.clip(y + rng.normal(0.0, 4.0), 1.0, PITCH_WIDTH - 1.0))
@@ -371,12 +389,27 @@ def generate_corpus(
 
 
 def write_csv(frame: pd.DataFrame, path: str | Path) -> Path:
-    """Write a match in the documented generic CSV format (``docs/csv_format.md``)."""
+    """Write a match in the documented generic CSV format (``docs/csv_format.md``).
+
+    A ``.gz`` suffix compresses on the way out; pandas reads it back the same.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     out = frame[
-        ["t", "team", "type", "x", "y", "phase", "outcome", "period", "possession_id", "match_id",
-         "competition", "season"]
+        [
+            "t",
+            "team",
+            "type",
+            "x",
+            "y",
+            "phase",
+            "outcome",
+            "period",
+            "possession_id",
+            "match_id",
+            "competition",
+            "season",
+        ]
     ].rename(columns={"type": "action"})
     out.to_csv(path, index=False)
     return path

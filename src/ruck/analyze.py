@@ -1,0 +1,218 @@
+"""The `ruck analyze` pipeline: events in, PDF and clip list out."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import pandas as pd
+
+from ruck.ingest import Fetcher, LoadReport, load
+from ruck.ingest.generic_csv import load_csv
+from ruck.lm.model import PhaseLM
+from ruck.report.render import ReportContext, render_report
+from ruck.report.shape import ShapeSummary, competition_reference, team_shape
+from ruck.report.surprisal import Highlight, event_surprisal, phase_timeline, top_sequences
+from ruck.report.timestamps import write_csv as write_clip_csv
+from ruck.tokenizer import Tokenizer, Vocab
+
+#: Where `ruck demo` and a default `ruck analyze` look for the shipped model.
+BUNDLED_MODEL_DIR = Path(__file__).parent / "_demo" / "model"
+REPO_MODEL_DIR = Path("demo/model")
+
+
+class ModelNotFoundError(FileNotFoundError):
+    """Raised when no trained model is available to score with."""
+
+
+@dataclass
+class LoadedModel:
+    """A tokenizer, a model, and the metrics that describe them."""
+
+    tokenizer: Tokenizer
+    model: PhaseLM
+    metrics: dict[str, object] = field(default_factory=dict)
+    directory: Path | None = None
+
+    def model_card(self) -> dict[str, object]:
+        """Flatten the metrics file into the rows the PDF's model card prints."""
+        card: dict[str, object] = {
+            "n_params": self.model.n_params(),
+            "vocab_size": len(self.tokenizer.vocab),
+        }
+        data = self.metrics.get("data")
+        if isinstance(data, dict):
+            card["train_events"] = data.get("train_events")
+            card["train_matches"] = data.get("train_matches")
+        perplexity = self.metrics.get("perplexity")
+        if isinstance(perplexity, dict):
+            for name, key in (
+                ("transformer", "ppl_transformer"),
+                ("bigram", "ppl_bigram"),
+                ("unigram", "ppl_unigram"),
+            ):
+                entry = perplexity.get(name)
+                if isinstance(entry, dict):
+                    card[key] = entry.get("perplexity")
+        downstream = self.metrics.get("downstream")
+        if isinstance(downstream, dict):
+            for name, result in (downstream.get("results") or {}).items():
+                if isinstance(result, dict):
+                    card[f"downstream_{name}"] = (
+                        f"AUC {result.get('roc_auc', float('nan')):.3f}  "
+                        f"AP {result.get('average_precision', float('nan')):.3f}"
+                    )
+        return card
+
+
+def find_model_dir(explicit: str | Path | None = None) -> Path:
+    """Locate a model directory: the one given, the repo's, or the packaged one."""
+    candidates = [Path(explicit)] if explicit else [REPO_MODEL_DIR, BUNDLED_MODEL_DIR]
+    for candidate in candidates:
+        if (candidate / "phase_lm.pt").exists() and (candidate / "vocab.json").exists():
+            return candidate
+    raise ModelNotFoundError(
+        "no trained model found. Run `python scripts/train_demo_model.py` to build the "
+        "bundled one, or point --model at a directory holding phase_lm.pt and vocab.json."
+    )
+
+
+def load_model(directory: str | Path | None = None) -> LoadedModel:
+    """Load a tokenizer, model and metrics from a model directory."""
+    path = find_model_dir(directory)
+    tokenizer = Tokenizer(Vocab.load(path / "vocab.json"))
+    model = PhaseLM.load(path / "phase_lm.pt")
+    metrics: dict[str, object] = {}
+    metrics_path = path / "metrics.json"
+    if metrics_path.exists():
+        metrics = json.loads(metrics_path.read_text())
+    return LoadedModel(tokenizer=tokenizer, model=model, metrics=metrics, directory=path)
+
+
+@dataclass
+class Analysis:
+    """Everything `ruck analyze` produced, so callers can assert on it."""
+
+    events: pd.DataFrame
+    scored: pd.DataFrame
+    timeline: pd.DataFrame
+    highlights: list[Highlight]
+    match_shape: ShapeSummary
+    reference_shape: ShapeSummary | None
+    context: ReportContext
+    load_report: LoadReport
+    pdf_path: Path | None = None
+    csv_path: Path | None = None
+
+
+def analyze(
+    target: str | Path,
+    *,
+    team: str | None = None,
+    out: str | Path | None = None,
+    clip_csv: str | Path | None = None,
+    model: str | Path | LoadedModel | None = None,
+    reference: str | Path | None = None,
+    device: str = "auto",
+    top_n: int = 10,
+    window: int = 3,
+    fetcher: Fetcher | None = None,
+    **load_kwargs: object,
+) -> Analysis:
+    """Load ``target``, score it, and write the report.
+
+    Args:
+        target: a CSV path, a RugbyPy file, or ``espn:<league>:<event_id>``.
+        team: restrict the attack-shape section to one team.
+        out: PDF path. No PDF is written when this is None.
+        clip_csv: timestamp CSV path. Written whenever given.
+        model: a model directory or an already-loaded :class:`LoadedModel`.
+        reference: a corpus CSV for the competition-average comparison; defaults
+            to the corpus the model was trained on, when it ships with one.
+    """
+    events, report = load(target, fetcher=fetcher, **load_kwargs)  # type: ignore[arg-type]
+    if events.empty:
+        raise ValueError(f"{target}: no events could be loaded ({report.summary()})")
+
+    loaded = model if isinstance(model, LoadedModel) else load_model(model)
+    scored = event_surprisal(events, loaded.tokenizer, loaded.model, device=device)
+    timeline = phase_timeline(scored if team is None else scored[scored["team"] == team])
+    highlights = top_sequences(
+        scored if team is None else scored[scored["team"] == team], n=top_n, window=window
+    )
+
+    match_shape = team_shape(events, team)
+    reference_shape = _reference_shape(reference, loaded, events)
+
+    context = ReportContext(
+        match_id=str(events["match_id"].iloc[0]),
+        competition=_first(events, "competition"),
+        season=_first(events, "season"),
+        teams=tuple(sorted(events["team"].dropna().unique())),
+        focus_team=team,
+        source_label=report.source,
+        synthetic=_is_synthetic(events),
+        load_notes=list(report.notes),
+        model_card=loaded.model_card(),
+    )
+
+    analysis = Analysis(
+        events=events,
+        scored=scored,
+        timeline=timeline,
+        highlights=highlights,
+        match_shape=match_shape,
+        reference_shape=reference_shape,
+        context=context,
+        load_report=report,
+    )
+
+    if clip_csv is not None:
+        analysis.csv_path = write_clip_csv(highlights, clip_csv)
+    if out is not None:
+        analysis.pdf_path = render_report(
+            scored=scored,
+            timeline=timeline,
+            highlights=highlights,
+            match_shape=match_shape,
+            reference_shape=reference_shape,
+            context=context,
+            out_path=out,
+        )
+    return analysis
+
+
+def _reference_shape(
+    reference: str | Path | None, loaded: LoadedModel, events: pd.DataFrame
+) -> ShapeSummary | None:
+    """Competition shape, from an explicit corpus or the model's training corpus."""
+    path: Path | None = None
+    if reference is not None:
+        path = Path(reference)
+    elif loaded.directory is not None:
+        for name in ("corpus.csv.gz", "corpus.csv"):
+            if (loaded.directory / name).exists():
+                path = loaded.directory / name
+                break
+    if path is None or not path.exists():
+        return None
+    corpus, _ = load_csv(path)
+    return competition_reference(corpus, exclude_match=str(events["match_id"].iloc[0]))
+
+
+def _first(events: pd.DataFrame, column: str) -> str | None:
+    values = events[column].dropna()
+    return str(values.iloc[0]) if len(values) else None
+
+
+def _is_synthetic(events: pd.DataFrame) -> bool:
+    """True when any event says it came from the generator."""
+    for blob in events["extra"].dropna().head(50):
+        try:
+            if json.loads(blob).get("synthetic"):
+                return True
+        except (json.JSONDecodeError, AttributeError):
+            continue
+    competition = events["competition"].dropna()
+    return bool(len(competition) and "generated" in str(competition.iloc[0]).lower())
