@@ -52,14 +52,29 @@ def block(metrics: dict) -> str:
         f"| Unigram | {perplexity['unigram']['perplexity']:.2f} |",
         "",
         f"Over {perplexity['transformer']['n_tokens']:,} test tokens, vocabulary "
-        f"{tokenizer['vocab_size']}. ",
+        f"{tokenizer['vocab_size']}. The count baselines choose their smoothing "
+        f"constant on the same validation split the transformer early-stops against "
+        f"(bigram k = {perplexity['bigram'].get('smoothing_k', 'n/a')}); a fixed k "
+        f"would hand the transformer a win it has not earned.",
+        "",
     ]
 
-    if perplexity["transformer"]["perplexity"] < perplexity["bigram"]["perplexity"]:
-        ratio = perplexity["bigram"]["perplexity"] / perplexity["transformer"]["perplexity"]
+    transformer_ppl = perplexity["transformer"]["perplexity"]
+    bigram_ppl = perplexity["bigram"]["perplexity"]
+    ratio = bigram_ppl / transformer_ppl if transformer_ppl else float("nan")
+    if ratio >= 1.5:
         lines.append(
-            f"The transformer beats the bigram by {ratio:.1f}x, so it is using more than "
-            "the previous event."
+            f"The transformer beats the bigram by {ratio:.2f}x, so it is using "
+            "substantially more than the previous event."
+        )
+    elif ratio > 1.01:
+        lines.append(
+            f"**The transformer beats the bigram by only {ratio:.2f}x.** Almost all the "
+            "predictable structure in this corpus is in the previous event alone, which "
+            "is what you would expect from a generator whose next step depends mostly on "
+            "the last one — a real corpus may or may not behave the same way. On this "
+            "evidence the transformer is not earning its million parameters, and the "
+            "honest reading is that the bigram is the model to beat."
         )
     else:
         lines.append(
@@ -84,7 +99,10 @@ def block(metrics: dict) -> str:
         f"{gbm['n']:,} in-play events, base rate {gbm['positive_rate']:.3f}. Both "
         "predictors are fitted on the same match-disjoint split, and both are strictly "
         "causal: the probe reads the frozen model's hidden state at that event, which is "
-        "computed from that event and everything before it and nothing after.",
+        "computed from that event and everything before it and nothing after. Events that "
+        '*are* a score are excluded from the evaluated rows — predicting "will they '
+        'score?" at the moment the points go up is not a prediction, and leaving those '
+        "rows in inflated the reported average precision.",
         "",
         f"**The {winner} wins.** A hand-built feature set — field position, phase count, "
         "what has happened in the possession so far — carries more of this signal than a "

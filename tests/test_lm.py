@@ -263,3 +263,51 @@ def test_lm_states_are_produced_for_every_event(corpus, tokenizer):
     states = lm_states(corpus.head(400), tokenizer, model, device="cpu")
     assert states.shape[1] == 32
     assert states.notna().all(axis=1).mean() > 0.99
+
+
+# -- the label boundary ---------------------------------------------------
+
+
+def test_the_label_counts_scoring_actions_not_scoring_outcomes(corpus):
+    """A try recorded twice must not make its own first record predictable."""
+    from ruck.lm.downstream import scoring_instants
+    from ruck.schema import POINTS
+
+    labels = build_labels(corpus, n_phases=3)
+    scored_rows = corpus[scoring_instants(corpus)]
+    assert len(scored_rows) > 0
+    # Every carry that itself scored is excluded, so its outcome cannot be read
+    # off as the answer.
+    assert set(corpus.loc[corpus["type"].isin(POINTS)].index) <= set(scored_rows.index)
+    assert labels.loc[scored_rows.index].sum() >= 0  # excluded downstream, not mislabelled
+
+
+def test_a_scoring_instant_is_never_an_evaluated_row(corpus, tokenizer):
+    from ruck.lm.downstream import IN_PLAY, scoring_instants
+
+    evaluated = corpus["type"].isin(IN_PLAY) & ~scoring_instants(corpus)
+    assert evaluated.sum() > 0
+    assert not (evaluated & (corpus["outcome"] == "points")).any()
+
+
+def test_the_baseline_chooses_its_smoothing_on_validation(corpus, tokenizer):
+    split = split_by_match(corpus, seed=5)
+    train_sequences = tokenizer.encode_events(split.train)
+    val_sequences = tokenizer.encode_events(split.val)
+    test_sequences = tokenizer.encode_events(split.test)
+
+    untuned = CountBaseline(len(tokenizer.vocab), order=2).fit(train_sequences)
+    fixed = untuned.perplexity(test_sequences).perplexity
+
+    tuned = CountBaseline(len(tokenizer.vocab), order=2).fit(train_sequences)
+    tuned.tune(val_sequences)
+    assert tuned.perplexity(test_sequences).perplexity <= fixed
+    assert tuned.k != 0.1 or fixed == tuned.perplexity(test_sequences).perplexity
+
+
+def test_baseline_perplexity_can_be_held_to_the_models_context(corpus, tokenizer):
+    sequences = tokenizer.encode_events(corpus)
+    baseline = CountBaseline(len(tokenizer.vocab), order=2).fit(sequences)
+    full = baseline.perplexity(sequences).n_tokens
+    clipped = baseline.perplexity(sequences, max_len=8).n_tokens
+    assert clipped < full

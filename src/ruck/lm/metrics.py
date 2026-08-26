@@ -72,6 +72,15 @@ def model_perplexity(
     return PerplexityResult(name, nats, math.exp(nats), total_tokens)
 
 
+#: Smoothing constants tried by :meth:`CountBaseline.tune`. A fixed k is not a
+#: fair baseline: with a 2,000-token vocabulary, k=0.1 adds 200 pseudo-counts to
+#: every context, which is more mass than most real contexts have, and pushes
+#: the model most of the way to uniform. The transformer it is compared against
+#: gets early stopping on a validation split, so the baseline gets to choose its
+#: one hyper-parameter on the same split.
+SMOOTHING_GRID: tuple[float, ...] = (1e-5, 3e-5, 1e-4, 3e-4, 1e-3, 3e-3, 0.01, 0.03, 0.1, 0.3, 1.0)
+
+
 class CountBaseline:
     """Add-k smoothed unigram or bigram model over token ids."""
 
@@ -96,6 +105,29 @@ class CountBaseline:
                     self.bigram.setdefault(int(previous), Counter())[int(current)] += 1
         return self
 
+    def tune(
+        self,
+        validation: list[Encoded],
+        grid: tuple[float, ...] = SMOOTHING_GRID,
+        *,
+        max_len: int | None = None,
+    ) -> CountBaseline:
+        """Choose ``k`` by validation perplexity, and return self.
+
+        Called after :meth:`fit`, on the same validation split the transformer
+        early-stops against, so neither model gets to look at the test set.
+        """
+        if not validation:
+            return self
+        best_k, best = self.k, float("inf")
+        for candidate in grid:
+            self.k = candidate
+            score = self.perplexity(validation, max_len=max_len).perplexity
+            if score < best:
+                best_k, best = candidate, score
+        self.k = best_k
+        return self
+
     def log_prob(self, previous: int | None, current: int) -> float:
         denominator_extra = self.k * self.vocab_size
         if self.order == 2 and previous is not None:
@@ -104,11 +136,24 @@ class CountBaseline:
                 return math.log((row[current] + self.k) / (sum(row.values()) + denominator_extra))
         return math.log((self.unigram[current] + self.k) / (self.total + denominator_extra))
 
-    def perplexity(self, sequences: list[Encoded], name: str | None = None) -> PerplexityResult:
+    def perplexity(
+        self,
+        sequences: list[Encoded],
+        name: str | None = None,
+        *,
+        max_len: int | None = None,
+    ) -> PerplexityResult:
+        """Perplexity over ``sequences``.
+
+        ``max_len`` truncates each sequence the way the transformer's batching
+        does. Without it the two models are scored over different token sets
+        whenever a possession is longer than the model's context, and the
+        comparison the report exists to make stops being like-for-like.
+        """
         total_nats = 0.0
         total_tokens = 0
         for sequence in sequences:
-            ids = [int(i) for i in sequence.ids]
+            ids = [int(i) for i in sequence.ids[:max_len]]
             for position in range(1, len(ids)):
                 if ids[position] == PAD:
                     continue

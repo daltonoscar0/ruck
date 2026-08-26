@@ -31,7 +31,7 @@ from sklearn.preprocessing import StandardScaler
 
 from ruck.lm.data import pick_device
 from ruck.lm.model import PhaseLM
-from ruck.schema import ACTIONS, OUTCOMES
+from ruck.schema import ACTIONS, OUTCOMES, POINTS
 from ruck.tokenizer import Tokenizer
 
 #: Only in-play moments are scored. Asking "will they score in three phases?"
@@ -86,12 +86,19 @@ def build_labels(events: pd.DataFrame, n_phases: int = 3) -> pd.Series:
 
     Strictly forward-looking: only events later in the same possession count,
     and only if they land on or before ``phase + n_phases``.
+
+    A score is a scoring *action* — a try, a penalty goal, a drop goal — not
+    merely an event carrying ``outcome == "points"``. Sources commonly record a
+    try twice, as the carry that crossed the line and then as the try itself a
+    few seconds later, and counting the second as "the future" of the first
+    makes the label trivially recoverable from the first's own outcome field.
+    :func:`scoring_instants` excludes both records from the evaluated rows.
     """
     labels = np.zeros(len(events), dtype=np.int8)
     for _, block in events.groupby(["match_id", "possession_id"], sort=False):
         positions = block.index.to_numpy()
         phases = block["phase"].fillna(0).astype(int).to_numpy()
-        scoring = (block["outcome"] == "points").to_numpy()
+        scoring = block["type"].isin(POINTS).to_numpy()
         for offset in range(len(block)):
             horizon = phases[offset] + n_phases
             future = np.arange(offset + 1, len(block))
@@ -101,6 +108,16 @@ def build_labels(events: pd.DataFrame, n_phases: int = 3) -> pd.Series:
             if bool(hits.any()):
                 labels[events.index.get_loc(positions[offset])] = 1
     return pd.Series(labels, index=events.index, name=f"points_within_{n_phases}")
+
+
+def scoring_instants(events: pd.DataFrame) -> pd.Series:
+    """Events that *are* a score rather than a moment before one.
+
+    Predicting "will they score in three phases?" at the instant the points go
+    up is not a prediction. Those rows are dropped before either predictor is
+    fitted or scored, so no feature can carry the answer.
+    """
+    return events["type"].isin(POINTS) | (events["outcome"] == "points")
 
 
 def build_hand_features(events: pd.DataFrame) -> pd.DataFrame:
@@ -221,7 +238,11 @@ def compare(
         labels = build_labels(events, n_phases=n_phases)
         hand = build_hand_features(events)
         states = lm_states(events, tokenizer, model, device=torch_device)
-        keep = events["type"].isin(IN_PLAY).to_numpy() & states.notna().all(axis=1).to_numpy()
+        keep = (
+            events["type"].isin(IN_PLAY).to_numpy()
+            & ~scoring_instants(events).to_numpy()
+            & states.notna().all(axis=1).to_numpy()
+        )
         return hand[keep], states[keep], labels[keep].to_numpy()
 
     hand_train, states_train, y_train = prepare(train_events)

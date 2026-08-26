@@ -74,12 +74,16 @@ def main() -> int:
     print("  " + history.summary())
 
     transformer = evaluate(model, test_sequences, name="transformer", device=args.device)
-    unigram = (
-        CountBaseline(len(tokenizer.vocab), order=1).fit(train_sequences).perplexity(test_sequences)
-    )
-    bigram = (
-        CountBaseline(len(tokenizer.vocab), order=2).fit(train_sequences).perplexity(test_sequences)
-    )
+    # The baselines get their one hyper-parameter chosen on the same validation
+    # split the transformer early-stops against. A fixed smoothing constant
+    # would hand the transformer a win it has not earned.
+    unigram_model = CountBaseline(len(tokenizer.vocab), order=1).fit(train_sequences)
+    unigram_model.tune(val_sequences, max_len=model_config.max_len)
+    bigram_model = CountBaseline(len(tokenizer.vocab), order=2).fit(train_sequences)
+    bigram_model.tune(val_sequences, max_len=model_config.max_len)
+    width = model_config.max_len
+    unigram = unigram_model.perplexity(test_sequences, max_len=width)
+    bigram = bigram_model.perplexity(test_sequences, max_len=width)
     for result in (transformer, bigram, unigram):
         print(f"  {result}")
 
@@ -102,6 +106,8 @@ def main() -> int:
             "matches": args.matches,
             "seed": args.seed,
             **split.sizes(),
+            # The demo report must be built from a match the model never saw.
+            "test_match_ids": sorted(split.test["match_id"].unique().tolist()),
         },
         "tokenizer": {"vocab_size": len(tokenizer.vocab), "test_coverage": coverage},
         "model": {**asdict(model_config), "n_params": history.n_params},
@@ -119,8 +125,13 @@ def main() -> int:
                 "perplexity": r.perplexity,
                 "nats_per_token": r.nats_per_token,
                 "n_tokens": r.n_tokens,
+                **extra,
             }
-            for r in (transformer, bigram, unigram)
+            for r, extra in (
+                (transformer, {}),
+                (bigram, {"smoothing_k": bigram_model.k}),
+                (unigram, {"smoothing_k": unigram_model.k}),
+            )
         },
         "downstream": {
             "task": f"points within {args.n_phases} phases",
