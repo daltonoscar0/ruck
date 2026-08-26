@@ -131,6 +131,8 @@ def _analyze(args: argparse.Namespace) -> int:
         **({"strict": True} if args.strict else {}),
     )
     print(result.load_report.summary())
+    if result.context.coverage_note:
+        print(f"  warning: {result.context.coverage_note}", file=sys.stderr)
     if result.context.synthetic:
         print("  note: this source is synthetic; the report says so on every page")
     print(f"wrote {result.pdf_path}")

@@ -24,6 +24,11 @@ from ruck.tokenizer import Tokenizer, token_of, zone_of
 #: build-up rather than opening on the moment itself.
 CLIP_LEAD_IN = 8.0
 
+#: Events nobody cuts video of. A substitution is not a passage of play, and a
+#: feed made mostly of substitutions will otherwise fill the whole clip list
+#: with them — they are unusual to a model precisely because they are not rugby.
+NOT_CLIPPABLE: frozenset[str] = frozenset({"substitution", "end_period"})
+
 ZONE_PHRASE: dict[str, str] = {
     "own22": "inside their own 22",
     "own40": "in their own half",
@@ -233,6 +238,7 @@ def top_sequences(
     window: int = 3,
     min_gap: float = 15.0,
     max_span: float = 150.0,
+    clippable_only: bool = True,
 ) -> list[Highlight]:
     """The ``n`` most unexpected passages of play, as clip-ready highlights.
 
@@ -272,6 +278,8 @@ def top_sequences(
         if len(highlights) >= n:
             break
         peak = chunk.iloc[peak_offset]
+        if clippable_only and str(peak["type"]) in NOT_CLIPPABLE:
+            continue
         if int(peak.name) in used_peaks:
             continue
         if any(abs(start_t - other) < min_gap for other in taken):

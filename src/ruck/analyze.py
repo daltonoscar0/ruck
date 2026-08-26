@@ -161,6 +161,13 @@ def analyze(
             )
 
     loaded = model if isinstance(model, LoadedModel) else load_model(model)
+
+    # How much of this match the model's vocabulary actually covers. Surprisal
+    # over tokens it has never seen measures novelty of the *source*, not of
+    # the rugby, and a report that does not say so is misleading.
+    coverage = loaded.tokenizer.coverage(events)
+    coverage_note = _coverage_note(coverage)
+
     scored = event_surprisal(events, loaded.tokenizer, loaded.model, device=device)
     timeline = phase_timeline(scored if team is None else scored[scored["team"] == team])
     highlights = top_sequences(
@@ -182,6 +189,8 @@ def analyze(
         model_card=loaded.model_card(),
         model_is_synthetic=loaded.trained_on_synthetic(),
         reference_note=reference_note,
+        coverage=coverage,
+        coverage_note=coverage_note,
     )
 
     analysis = Analysis(
@@ -244,6 +253,26 @@ def _reference_shape(
     if reference_shape.n_events == 0:
         return None, f"Reference corpus {path.name} has nothing in it but this match."
     return reference_shape, None
+
+
+#: Above this share of events falling outside the model's vocabulary, the
+#: surprisal ranking is not about rugby any more.
+UNKNOWN_TOKEN_LIMIT = 0.10
+
+
+def _coverage_note(coverage: dict[str, float]) -> str | None:
+    """A warning when the model's vocabulary does not cover this match."""
+    unknown = coverage.get("unk", 0.0)
+    if unknown <= UNKNOWN_TOKEN_LIMIT:
+        return None
+    return (
+        f"{unknown:.0%} of the events in this match are of a kind the model has never "
+        "seen, so they fall outside its vocabulary entirely. Those events score near "
+        "the maximum surprisal whatever happened in them, which means this ranking is "
+        "measuring how unlike the training corpus the source is, not how unexpected "
+        "the rugby was. Train on matches from the same feed (`ruck train`) before "
+        "reading the ordering."
+    )
 
 
 def _bundled_corpus(loaded: LoadedModel) -> Path | None:

@@ -441,3 +441,46 @@ def test_the_same_play_is_never_listed_as_two_clips(scored: pd.DataFrame):
     highlights = top_sequences(scored, n=10)
     peaks = [h.event_index for h in highlights]
     assert len(peaks) == len(set(peaks))
+
+
+def test_substitutions_are_not_offered_as_video_clips():
+    """A feed made mostly of substitutions must not fill the clip list with them."""
+    frame = coerce(
+        pd.DataFrame(
+            [
+                {
+                    "match_id": "m",
+                    "t": float(i * 30),
+                    "team": "A",
+                    "type": kind,
+                    "phase": 0,
+                    "possession_id": i,
+                }
+                for i, kind in enumerate(["substitution", "substitution", "try", "carry"])
+            ]
+        )
+    )
+    frame["surprisal_bits"] = [35.0, 34.0, 5.0, 4.0]
+    kinds = {frame.loc[h.event_index, "type"] for h in top_sequences(frame, n=4, window=1)}
+    assert "substitution" not in kinds
+    assert "try" in kinds
+
+
+def test_including_everything_is_still_available():
+    frame = coerce(
+        pd.DataFrame(
+            [
+                {
+                    "match_id": "m",
+                    "t": 0.0,
+                    "team": "A",
+                    "type": "substitution",
+                    "phase": 0,
+                    "possession_id": 0,
+                }
+            ]
+        )
+    )
+    frame["surprisal_bits"] = [35.0]
+    assert top_sequences(frame, n=1, window=1) == []
+    assert len(top_sequences(frame, n=1, window=1, clippable_only=False)) == 1

@@ -2,7 +2,7 @@
 
 **Target:** `/Users/oscardalton/ruck/demo/audit_fixtures`  
 **Scanned:** 25 Python files · 25 checks · ruck native checks  
-**Generated:** 2026-08-26 00:34 UTC
+**Generated:** 2026-08-26 19:42 UTC
 
 The target directory is only ever read. Files are parsed with `ast`; nothing in them is imported or executed.
 

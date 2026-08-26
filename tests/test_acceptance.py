@@ -329,3 +329,24 @@ def test_the_bundled_model_is_found_from_any_directory(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert not (tmp_path / "demo").exists()
     assert find_model_dir().exists()
+
+
+@needs_model
+def test_a_match_outside_the_models_vocabulary_is_flagged(tmp_path):
+    """Surprisal over unseen token types measures the feed, not the rugby."""
+    from ruck.analyze import analyze
+    from ruck.ingest import Fetcher
+
+    fetcher = Fetcher(cache_dir=DEMO / "espn_cache", offline=True)
+    result = analyze(
+        "espn:six_nations:597378", out=tmp_path / "espn.pdf", device="cpu", fetcher=fetcher
+    )
+    assert result.context.coverage["unk"] > 0.5
+    assert result.context.coverage_note
+    assert b"OUT OF VOCABULARY" in (tmp_path / "espn.pdf").read_bytes()
+
+
+@needs_model
+def test_a_covered_match_carries_no_vocabulary_warning(demo_output):
+    """The bundled synthetic match is what the model was fitted on the kind of."""
+    assert b"OUT OF VOCABULARY" not in demo_output["pdf"].read_bytes()

@@ -73,6 +73,10 @@ class ReportContext:
     model_is_synthetic: bool = False
     #: Why there is no competition comparison, when there is none.
     reference_note: str | None = None
+    #: Share of events resolving at each tokenizer backoff rung.
+    coverage: dict[str, float] = field(default_factory=dict)
+    #: Set when too much of the match falls outside the model's vocabulary.
+    coverage_note: str | None = None
     #: An optional real-data appendix: ``{"label", "note", "columns", "rows"}``.
     #: Kept in its own section so measured events are never shown next to
     #: generated ones as if they were the same thing.
@@ -229,6 +233,22 @@ def _provenance_banner(context: ReportContext, styles: dict[str, ParagraphStyle]
     return table
 
 
+def _warning_banner(text: str, styles: dict[str, ParagraphStyle]) -> Table:
+    table = Table([[Paragraph(text, styles["banner"])]], colWidths=[CONTENT_WIDTH])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), WARN_BG),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
+    return table
+
+
 def _fmt(value: object, digits: int = 2) -> str:
     if value is None:
         return "--"
@@ -346,8 +366,11 @@ def _cover_page(
         Paragraph(f"{context.title()}{focus}", styles["title"]),
         Paragraph(f"{context.subtitle()} · phase-play surprisal report", styles["subtitle"]),
         _provenance_banner(context, styles),
-        Spacer(1, 8),
     ]
+    if context.coverage_note:
+        story.append(Spacer(1, 6))
+        story.append(_warning_banner("OUT OF VOCABULARY — " + context.coverage_note, styles))
+    story.append(Spacer(1, 8))
 
     summary = [
         ["Events analysed", _fmt(len(scored), 0)],
@@ -625,6 +648,14 @@ def _method_page(context: ReportContext, styles: dict[str, ParagraphStyle]) -> l
             rows.append(
                 [str(key).replace("downstream_", "Downstream — ").replace("_", " "), str(card[key])]
             )
+    if context.coverage:
+        rows.append(
+            [
+                "Events inside the model's vocabulary",
+                f"{1.0 - context.coverage.get('unk', 0.0):.1%}",
+            ]
+        )
+        rows.append(["Events matched at full detail", f"{context.coverage.get('full', 0.0):.1%}"])
     story.append(_table(rows, [CONTENT_WIDTH * 0.55, CONTENT_WIDTH * 0.45]))
 
     story.append(Spacer(1, 10))
@@ -644,6 +675,8 @@ def _caveats(context: ReportContext) -> list[str]:
         "outcome. Two events that differ only in who carried are the same token.",
         "The model has no view on whether an unexpected event was good.",
     ]
+    if context.coverage_note:
+        caveats.insert(0, context.coverage_note)
     if context.synthetic:
         caveats.insert(
             0,

@@ -150,7 +150,7 @@ endobj
 endobj
 19 0 obj
 <<
-/Author (ruck) /CreationDate (D:20260825203439-04'00') /Creator (\(unspecified\)) /Keywords () /ModDate (D:20260825203439-04'00') /Producer (ReportLab PDF Library - \(opensource\)) 
+/Author (ruck) /CreationDate (D:20260826154220-04'00') /Creator (\(unspecified\)) /Keywords () /ModDate (D:20260826154220-04'00') /Producer (ReportLab PDF Library - \(opensource\)) 
   /Subject (rugby phase-play surprisal report) /Title (ruck \204 Herons v Kestrels) /Trapped /False
 >>
 endobj
@@ -287,7 +287,7 @@ q
 1 0 0 1 57.02362 399.5354 cm
 q
 .321569 .317647 .305882 rg
-BT 1 0 0 1 0 2.5 Tm /F1 7.5 Tf 10 TL (Source: csv:demo_match.csv \267 generated 2026-08-26 00:34 UTC) Tj T* ET
+BT 1 0 0 1 0 2.5 Tm /F1 7.5 Tf 10 TL (Source: csv:demo_match.csv \267 generated 2026-08-26 19:42 UTC) Tj T* ET
 Q
 Q
  
@@ -771,7 +771,7 @@ endstream
 endobj
 25 0 obj
 <<
-/Length 4093
+/Length 4373
 >>
 stream
 1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
@@ -799,39 +799,45 @@ BT 1 0 0 1 0 16 Tm /F1 9 Tf 12.5 TL (The numbers behind the timeline. A perplexi
 Q
 Q
 q
-1 0 0 1 51.02362 540.5354 cm
+1 0 0 1 51.02362 504.5354 cm
 q
 .321569 .317647 .305882 rg
 BT /F2 7.5 Tf 12 TL ET
-BT 1 0 0 1 4 187.5 Tm (Property) Tj T* ET
-BT 1 0 0 1 275.2756 187.5 Tm (Value) Tj T* ET
+BT 1 0 0 1 4 223.5 Tm (Property) Tj T* ET
+BT 1 0 0 1 275.2756 223.5 Tm (Value) Tj T* ET
 .043137 .043137 .043137 rg
 BT /F1 7.5 Tf 12 TL ET
-BT 1 0 0 1 4 169.5 Tm (Parameters) Tj T* ET
-BT 1 0 0 1 275.2756 169.5 Tm (1,080,320) Tj T* ET
-BT 1 0 0 1 4 151.5 Tm (Vocabulary size) Tj T* ET
-BT 1 0 0 1 275.2756 151.5 Tm (1,986) Tj T* ET
-BT 1 0 0 1 4 133.5 Tm (Training events) Tj T* ET
-BT 1 0 0 1 275.2756 133.5 Tm (71,431) Tj T* ET
-BT 1 0 0 1 4 115.5 Tm (Training matches) Tj T* ET
-BT 1 0 0 1 275.2756 115.5 Tm (64) Tj T* ET
-BT 1 0 0 1 4 97.5 Tm (Test perplexity \227 transformer) Tj T* ET
-BT 1 0 0 1 275.2756 97.5 Tm (3.744) Tj T* ET
-BT 1 0 0 1 4 79.5 Tm (Test perplexity \227 bigram baseline) Tj T* ET
-BT 1 0 0 1 275.2756 79.5 Tm (3.938) Tj T* ET
-BT 1 0 0 1 4 61.5 Tm (Test perplexity \227 unigram baseline) Tj T* ET
-BT 1 0 0 1 275.2756 61.5 Tm (478.359) Tj T* ET
-BT 1 0 0 1 4 43.5 Tm (Downstream \227 gbm) Tj T* ET
-BT 1 0 0 1 275.2756 43.5 Tm (AUC 0.866  AP 0.419) Tj T* ET
-BT 1 0 0 1 4 25.5 Tm (Downstream \227 lm probe) Tj T* ET
-BT 1 0 0 1 275.2756 25.5 Tm (AUC 0.846  AP 0.375) Tj T* ET
-BT 1 0 0 1 4 7.5 Tm (Downstream \227 base rate) Tj T* ET
-BT 1 0 0 1 275.2756 7.5 Tm (AUC 0.500  AP 0.102) Tj T* ET
+BT 1 0 0 1 4 205.5 Tm (Parameters) Tj T* ET
+BT 1 0 0 1 275.2756 205.5 Tm (1,080,320) Tj T* ET
+BT 1 0 0 1 4 187.5 Tm (Vocabulary size) Tj T* ET
+BT 1 0 0 1 275.2756 187.5 Tm (1,986) Tj T* ET
+BT 1 0 0 1 4 169.5 Tm (Training events) Tj T* ET
+BT 1 0 0 1 275.2756 169.5 Tm (71,431) Tj T* ET
+BT 1 0 0 1 4 151.5 Tm (Training matches) Tj T* ET
+BT 1 0 0 1 275.2756 151.5 Tm (64) Tj T* ET
+BT 1 0 0 1 4 133.5 Tm (Test perplexity \227 transformer) Tj T* ET
+BT 1 0 0 1 275.2756 133.5 Tm (3.744) Tj T* ET
+BT 1 0 0 1 4 115.5 Tm (Test perplexity \227 bigram baseline) Tj T* ET
+BT 1 0 0 1 275.2756 115.5 Tm (3.938) Tj T* ET
+BT 1 0 0 1 4 97.5 Tm (Test perplexity \227 unigram baseline) Tj T* ET
+BT 1 0 0 1 275.2756 97.5 Tm (478.359) Tj T* ET
+BT 1 0 0 1 4 79.5 Tm (Downstream \227 gbm) Tj T* ET
+BT 1 0 0 1 275.2756 79.5 Tm (AUC 0.866  AP 0.419) Tj T* ET
+BT 1 0 0 1 4 61.5 Tm (Downstream \227 lm probe) Tj T* ET
+BT 1 0 0 1 275.2756 61.5 Tm (AUC 0.846  AP 0.375) Tj T* ET
+BT 1 0 0 1 4 43.5 Tm (Downstream \227 base rate) Tj T* ET
+BT 1 0 0 1 275.2756 43.5 Tm (AUC 0.500  AP 0.102) Tj T* ET
+BT 1 0 0 1 4 25.5 Tm (Events inside the model's vocabulary) Tj T* ET
+BT 1 0 0 1 275.2756 25.5 Tm (100.0%) Tj T* ET
+BT 1 0 0 1 4 7.5 Tm (Events matched at full detail) Tj T* ET
+BT 1 0 0 1 275.2756 7.5 Tm (99.9%) Tj T* ET
 q
 1 J
 1 j
 .901961 .898039 .882353 RG
 .4 w
+n 0 216 m 493.2283 216 l S
+n 0 198 m 493.2283 198 l S
 n 0 180 m 493.2283 180 l S
 n 0 162 m 493.2283 162 l S
 n 0 144 m 493.2283 144 l S
@@ -844,57 +850,57 @@ n 0 36 m 493.2283 36 l S
 n 0 18 m 493.2283 18 l S
 .321569 .317647 .305882 RG
 .7 w
-n 0 180 m 493.2283 180 l S
+n 0 216 m 493.2283 216 l S
 Q
 Q
 Q
 q
-1 0 0 1 57.02362 530.5354 cm
+1 0 0 1 57.02362 494.5354 cm
 Q
 q
-1 0 0 1 57.02362 510.5354 cm
+1 0 0 1 57.02362 474.5354 cm
 q
 .043137 .043137 .043137 rg
 BT 1 0 0 1 0 3 Tm /F2 13 Tf 16 TL (Caveats) Tj T* ET
 Q
 Q
 q
-1 0 0 1 57.02362 479.5354 cm
+1 0 0 1 57.02362 443.5354 cm
 q
 .043137 .043137 .043137 rg
 BT 1 0 0 1 0 16 Tm /F1 9 Tf 12.5 TL (\177 The transformer's edge over a bigram baseline is 1.05x. Nearly all the predictable structure is in the previous event) Tj T* (alone, so treat these bits as a ranking of moments rather than as evidence that the model understands a possession.) Tj T* ET
 Q
 Q
 q
-1 0 0 1 57.02362 449.5354 cm
+1 0 0 1 57.02362 413.5354 cm
 q
 .043137 .043137 .043137 rg
 BT 1 0 0 1 0 16 Tm /F1 9 Tf 12.5 TL (\177 The events in this report were generated, not measured. Nothing here is a statement about any real match, team or) Tj T* (player.) Tj T* ET
 Q
 Q
 q
-1 0 0 1 57.02362 419.5354 cm
+1 0 0 1 57.02362 383.5354 cm
 q
 .043137 .043137 .043137 rg
 BT 1 0 0 1 0 16 Tm /F1 9 Tf 12.5 TL (\177 Surprisal is measured against this model, trained on this corpus. A different corpus produces different numbers; the) Tj T* (ranking within one match is the part worth reading.) Tj T* ET
 Q
 Q
 q
-1 0 0 1 57.02362 402.0354 cm
+1 0 0 1 57.02362 366.0354 cm
 q
 .043137 .043137 .043137 rg
 BT 1 0 0 1 0 3.5 Tm /F1 9 Tf 12.5 TL (\177 The first event of a possession has no context inside it and is not scored.) Tj T* ET
 Q
 Q
 q
-1 0 0 1 57.02362 372.0354 cm
+1 0 0 1 57.02362 336.0354 cm
 q
 .043137 .043137 .043137 rg
 BT 1 0 0 1 0 16 Tm /F1 9 Tf 12.5 TL (\177 Tokens are coarse by design \227 action, an 18-cell zone, a phase bucket and an outcome. Two events that differ only in) Tj T* (who carried are the same token.) Tj T* ET
 Q
 Q
 q
-1 0 0 1 57.02362 354.5354 cm
+1 0 0 1 57.02362 318.5354 cm
 q
 .043137 .043137 .043137 rg
 BT 1 0 0 1 0 3.5 Tm /F1 9 Tf 12.5 TL (\177 The model has no view on whether an unexpected event was good.) Tj T* ET
@@ -1070,11 +1076,11 @@ xref
 0000196763 00000 n 
 0000203345 00000 n 
 0000207184 00000 n 
-0000211329 00000 n 
+0000211609 00000 n 
 trailer
 <<
 /ID 
-[<46d0f8c5aecf40bcdb1c0b09c5dcc657><46d0f8c5aecf40bcdb1c0b09c5dcc657>]
+[<28b330e7fce9a3f9b56455f3f1dcf184><28b330e7fce9a3f9b56455f3f1dcf184>]
 % ReportLab generated PDF document -- digest (opensource)
 
 /Info 19 0 R
@@ -1082,5 +1088,5 @@ trailer
 /Size 27
 >>
 startxref
-216267
+216547
 %%EOF
