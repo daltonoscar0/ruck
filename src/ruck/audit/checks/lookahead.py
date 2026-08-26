@@ -12,7 +12,12 @@ from __future__ import annotations
 import ast
 
 from ruck.audit.astutils import Module, assigned_names, call_name, int_arg, keyword_value, literal
-from ruck.audit.checks.base import ModuleFacts, find_window, is_label_name
+from ruck.audit.checks.base import (
+    ModuleFacts,
+    find_window,
+    is_label_name,
+    is_probable_label_name,
+)
 from ruck.audit.models import Category, Confidence, Finding, Severity
 
 #: sklearn transformers whose `fit` learns statistics from the data it sees.
@@ -35,9 +40,10 @@ FITTED_TRANSFORMERS: tuple[str, ...] = (
 
 def check(module: Module, facts: ModuleFacts) -> list[Finding]:
     findings: list[Finding] = []
+    label_lines = _label_assignment_lines(module)
     for node in ast.walk(module.tree):
         if isinstance(node, ast.Call):
-            findings.extend(_negative_shift(module, node))
+            findings.extend(_negative_shift(module, node, label_lines))
             findings.extend(_centered_window(module, node))
             findings.extend(_backfill(module, node))
             findings.extend(_interpolate(module, node))
@@ -48,11 +54,64 @@ def check(module: Module, facts: ModuleFacts) -> list[Finding]:
     return findings
 
 
-def _negative_shift(module: Module, node: ast.Call) -> list[Finding]:
+def _derivation(module: Module) -> dict[str, set[str]]:
+    """For each variable, the variables it was (transitively) computed from.
+
+    Enough to tell `scaler.fit(X); X_scaled = scaler.fit_transform(X);
+    train_test_split(X_scaled, ...)` — where the fit really does see the test
+    rows — from `scaler.fit(X_train)`, where it does not.
+    """
+    direct: dict[str, set[str]] = {}
+    for node in ast.walk(module.tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        sources = {inner.id for inner in ast.walk(node.value) if isinstance(inner, ast.Name)}
+        for name in assigned_names(node):
+            direct.setdefault(name, set()).update(sources)
+
+    resolved: dict[str, set[str]] = {}
+
+    def expand(name: str, seen: frozenset[str]) -> set[str]:
+        if name in resolved:
+            return resolved[name]
+        if name in seen:
+            return set()
+        out = set(direct.get(name, set()))
+        for parent in list(out):
+            out |= expand(parent, seen | {name})
+        if name not in seen:
+            resolved[name] = out
+        return out
+
+    return {name: expand(name, frozenset()) for name in direct}
+
+
+def _label_assignment_lines(module: Module) -> set[int]:
+    """Lines whose assignment target is the outcome being constructed.
+
+    `panel["injury_next_7d"] = panel.groupby(...)["injured"].shift(-7)` is the
+    textbook way to build a forward label, and this check's own fix text tells
+    people to write exactly that. Flagging it as critical lookahead trains
+    readers to ignore the check.
+    """
+    lines: set[int] = set()
+    for node in ast.walk(module.tree):
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            names = assigned_names(node)
+            if names and any(is_probable_label_name(name) for name in names):
+                start = module.line(node)
+                end = module.end_line(node) or start
+                lines.update(range(start, end + 1))
+    return lines
+
+
+def _negative_shift(module: Module, node: ast.Call, label_lines: set[int]) -> list[Finding]:
     if call_name(node) != "shift":
         return []
     periods = int_arg(node, 0, "periods")
     if periods is None or periods >= 0:
+        return []
+    if module.line(node) in label_lines:
         return []
     return [
         Finding(
@@ -248,8 +307,16 @@ def _window_covers_today(module: Module, node: ast.Assign, facts: ModuleFacts) -
 
 
 def _fit_before_split(module: Module) -> list[Finding]:
-    """A transformer fitted on the whole frame before the split that follows it."""
+    """A transformer fitted on the data that is split afterwards.
+
+    Textual order is not execution order — two helper functions can appear in
+    either order and behave identically — so the test is not "which line comes
+    first". It is whether the thing being fitted is the same variable that is
+    later handed to the splitter. Fitting `X_train` is correct however high up
+    the file it sits; fitting `X` and then splitting `X` is the bug.
+    """
     split_line: int | None = None
+    split_inputs: set[str] = set()
     for node in ast.walk(module.tree):
         if isinstance(node, ast.Call) and call_name(node) in {
             "train_test_split",
@@ -259,8 +326,18 @@ def _fit_before_split(module: Module) -> list[Finding]:
         }:
             line = module.line(node)
             split_line = line if split_line is None else min(split_line, line)
-    if split_line is None:
+            for argument in node.args:
+                if isinstance(argument, ast.Name):
+                    split_inputs.add(argument.id)
+    if split_line is None or not split_inputs:
         return []
+
+    # The frame handed to the splitter is usually the transformer's *output*,
+    # not the frame it was fitted on, so follow the assignments backwards.
+    derives_from = _derivation(module)
+    tainted = set(split_inputs)
+    for name in split_inputs:
+        tainted |= derives_from.get(name, set())
 
     constructed: dict[str, str] = {}
     for node in ast.walk(module.tree):
@@ -275,7 +352,8 @@ def _fit_before_split(module: Module) -> list[Finding]:
         if not isinstance(node, ast.Call) or call_name(node) not in {"fit", "fit_transform"}:
             continue
         line = module.line(node)
-        if line >= split_line:
+        fitted = [a.id for a in node.args if isinstance(a, ast.Name)]
+        if not any(name in tainted for name in fitted):
             continue
         owner = node.func.value if isinstance(node.func, ast.Attribute) else None
         owner_name = getattr(owner, "id", None)
@@ -296,19 +374,25 @@ def _fit_before_split(module: Module) -> list[Finding]:
                 end_line=module.end_line(node),
                 snippet=module.snippet(node),
                 mechanism=(
-                    f"`{owner_name}.{call_name(node)}` runs at line {line}, before the split "
-                    f"at line {split_line}. The transformer's statistics — means, quantiles, "
-                    "imputation values, selected features — are computed over rows that end "
-                    "up in the test set, so the test set is no longer held out. On a "
-                    "workload panel this is usually worth a few points of AUC that do not "
-                    "survive deployment."
+                    f"`{owner_name}.{call_name(node)}` is fitted on "
+                    f"`{', '.join(n for n in fitted if n in tainted)}`, which is the "
+                    f"same data handed to the splitter at line {split_line}. The "
+                    "transformer's statistics — means, quantiles, imputation values, "
+                    "selected features — are therefore computed over rows that end up in "
+                    "the test set, so the test set is no longer held out. On a workload "
+                    "panel this is usually worth a few points of AUC that do not survive "
+                    "deployment."
                 ),
                 fix=(
                     "Split first, then fit on the training rows only, or wrap the "
                     "transformer and the estimator in a `Pipeline` and fit the pipeline "
                     "inside the cross-validation loop."
                 ),
-                evidence={"transformer": transformer, "split_line": split_line},
+                evidence={
+                    "transformer": transformer,
+                    "split_line": split_line,
+                    "fitted_on": sorted(set(fitted) & tainted),
+                },
             )
         )
     return findings

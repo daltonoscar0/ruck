@@ -22,6 +22,7 @@ from ruck.audit.checks.base import (
     all_subscript_keys,
     find_window,
     is_label_name,
+    is_probable_label_name,
     is_workload_name,
     normalise,
 )
@@ -82,7 +83,10 @@ def _feature_matrix_holds_label(
         parsed = literal(node.value)
         if isinstance(parsed, (list, tuple)):
             columns = [str(v) for v in parsed]
-    leaked = sorted({c for c in columns if is_label_name(c)})
+    leaked = sorted({c for c in columns if is_probable_label_name(c)})
+    # `X = tracking[["x", "y"]]` is a coordinate pair, not a leaked label.
+    if "y" in leaked and any(c.lower() == "x" for c in columns):
+        leaked.remove("y")
     if not leaked:
         return []
     return [
@@ -152,11 +156,13 @@ def _feature_from_label(module: Module, node: ast.Assign) -> list[Finding]:
         return []
     if _calls_label_consumer(node.value) or _is_row_filter(node.value):
         return []
+    if _is_evaluation(names[0], node.value):
+        return []
     referenced = sorted(
         {
             key
             for key in all_subscript_keys(node.value) + _names_in(node.value)
-            if is_label_name(key)
+            if is_probable_label_name(key)
         }
     )
     if not referenced:
@@ -306,6 +312,110 @@ def _names_in(node: ast.AST) -> list[str]:
 def _is_date(name: str) -> bool:
     text = normalise(name)
     return any(token in text for token in ("date", "day", "session", "timestamp"))
+
+
+#: Name fragments that mean "this number describes the outcome" rather than
+#: "this number is a feature": scores, rates and report tables.
+EVALUATION_FRAGMENTS: tuple[str, ...] = (
+    "accuracy",
+    "precision",
+    "recall",
+    "auc",
+    "roc",
+    "brier",
+    "logloss",
+    "log_loss",
+    "f1",
+    "mse",
+    "rmse",
+    "mae",
+    "confusion",
+    "report",
+    "metric",
+    "eval",
+    "baseline",
+    "base_rate",
+    "positive_rate",
+    "prevalence",
+    "balance",
+    "rate_index",
+    "summary",
+    "n_positive",
+    "n_negative",
+    "counts",
+    "distribution",
+)
+
+#: Names that hold model output. A quantity computed from predictions and the
+#: outcome together is a score, not a feature.
+PREDICTION_FRAGMENTS: tuple[str, ...] = (
+    "pred",
+    "prediction",
+    "predicted",
+    "proba",
+    "probability",
+    "y_hat",
+    "yhat",
+    "score_out",
+    "output",
+    "fitted",
+)
+
+
+#: Calls that collapse rows. A number produced by one of these is a statistic
+#: about the outcome, not a per-row feature that could leak into a model.
+AGGREGATIONS: frozenset[str] = frozenset(
+    {
+        "mean",
+        "sum",
+        "count",
+        "size",
+        "std",
+        "var",
+        "min",
+        "max",
+        "median",
+        "describe",
+        "value_counts",
+        "nunique",
+        "quantile",
+        "agg",
+        "corr",
+        "cov",
+    }
+)
+
+#: Calls that keep one value per row, so an "aggregate" after them is still a
+#: per-row feature.
+ROW_ALIGNED: frozenset[str] = frozenset({"rolling", "ewm", "expanding", "transform", "shift"})
+
+
+def _is_summary_of(value: ast.AST) -> bool:
+    """True when an expression collapses rows rather than producing one per row."""
+    calls = [call_name(inner) for inner in ast.walk(value) if isinstance(inner, ast.Call)]
+    if any(name in ROW_ALIGNED for name in calls):
+        return False
+    return any(name in AGGREGATIONS for name in calls)
+
+
+def _is_evaluation(name: str, value: ast.AST) -> bool:
+    """True when an assignment is measuring the outcome rather than predicting it.
+
+    A Brier score, a class-balance figure and a weekly injury-rate table are all
+    computed from the label on purpose. Reporting them as label bleed is how a
+    leakage checker teaches people to ignore it.
+    """
+    folded = normalise(name)
+    if any(fragment in folded for fragment in EVALUATION_FRAGMENTS):
+        return True
+    if _is_summary_of(value):
+        return True
+    referenced = [normalise(n) for n in _names_in(value)] + [
+        normalise(k) for k in all_subscript_keys(value)
+    ]
+    return any(
+        any(fragment in candidate for fragment in PREDICTION_FRAGMENTS) for candidate in referenced
+    )
 
 
 def _is_row_filter(node: ast.AST) -> bool:

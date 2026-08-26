@@ -33,6 +33,7 @@ from ruck.audit.checks.base import (
     mentions_acwr,
     normalise,
     resolve_window,
+    scope_map,
 )
 from ruck.audit.models import Category, Confidence, Finding, Severity
 
@@ -56,19 +57,33 @@ DENOMINATOR_GUARDS: tuple[str, ...] = (
 def check(module: Module, facts: ModuleFacts) -> list[Finding]:
     findings: list[Finding] = []
     about_acwr = mentions_acwr(module)
-    known_windows = find_pandas_windows(module.tree)
+    # Window variables are local, so the name -> window map is built per scope.
+    scopes = scope_map(module.tree)
+    window_maps: dict[int, dict[str, Window]] = {}
+
+    def windows_for(node: ast.AST) -> dict[str, Window]:
+        scope = scopes.get(id(node), module.tree)
+        key = id(scope)
+        if key not in window_maps:
+            window_maps[key] = find_pandas_windows(scope, scopes)
+        return window_maps[key]
+
     for node in ast.walk(module.tree):
         if isinstance(node, ast.Assign):
-            findings.extend(_check_assignment(module, node, facts, known_windows))
+            findings.extend(_check_assignment(module, node, facts, windows_for(node)))
+        elif isinstance(node, ast.Return) and node.value is not None:
+            # `return acute / chronic` is as common as assigning it first.
+            findings.extend(
+                _check_ratio(module, node, node.value, facts, windows_for(node), label="the ratio")
+            )
         if isinstance(node, ast.Call):
             findings.extend(_check_binning(module, node))
         if isinstance(node, ast.Compare):
             findings.extend(_check_threshold(module, node, about_acwr))
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            findings.extend(_check_slice_windows(module, node))
+            findings.extend(_check_slice_windows(module, node, scopes))
             if about_acwr:
                 findings.extend(_check_python_ewma(module, node))
-            continue
     return _collapse_thresholds(findings)
 
 
@@ -96,10 +111,12 @@ def _collapse_thresholds(findings: list[Finding]) -> list[Finding]:
 
 
 def _check_slice_windows(
-    module: Module, scope: ast.FunctionDef | ast.AsyncFunctionDef
+    module: Module,
+    scope: ast.FunctionDef | ast.AsyncFunctionDef,
+    scopes: dict[int, ast.AST] | None = None,
 ) -> list[Finding]:
     """Coupled windows written as list slices rather than with pandas."""
-    windows = find_slice_windows(scope)
+    windows = find_slice_windows(scope, scopes)
     if len(windows) < 2:
         return []
 
@@ -143,12 +160,7 @@ def _check_slice_windows(
                     "acute load: it rises after a hard week as a matter of arithmetic, "
                     "before any athlete is involved."
                 ),
-                fix=(
-                    f"End the chronic slice where the acute one begins: "
-                    f"`{numerator.sequence}[max(0, i - {denominator.size_key} + 1) : "
-                    f"i - {numerator.size_key} + 1]`. Compute both the coupled and "
-                    "uncoupled ratios for one season and compare before choosing."
-                ),
+                fix=_slice_fix(module, numerator, denominator),
                 evidence={
                     "sequence": numerator.sequence,
                     "acute_window": numerator.size_key,
@@ -158,6 +170,32 @@ def _check_slice_windows(
             )
         )
     return findings
+
+
+def _slice_fix(module: Module, acute, chronic) -> str:
+    """A fix written in the same slice convention the source used.
+
+    The uncoupled chronic window ends exactly where the acute one begins, so
+    its upper bound is the acute slice's lower bound — whatever that happens to
+    be spelled as. Assuming an `i - n + 1` convention and emitting it back is
+    wrong for code written any other way, and a fix that is subtly off is worse
+    than no fix at all.
+    """
+    acute_lower = module.snippet(acute.lower_node) if acute.lower_node is not None else None
+    chronic_lower = module.snippet(chronic.lower_node) if chronic.lower_node is not None else None
+    if acute_lower and chronic_lower:
+        return (
+            "End the chronic slice where the acute one begins, so the two share no "
+            f"observations: `{chronic.sequence}[{chronic_lower} : {acute_lower}]`. "
+            "Divide by its own length rather than the acute one's. Compute both the "
+            "coupled and uncoupled ratios for one season and compare before choosing."
+        )
+    return (
+        "End the chronic slice where the acute one begins rather than where it ends, "
+        "so the two windows share no observations, and divide by its own length. "
+        "Compute both the coupled and uncoupled ratios for one season and compare "
+        "before choosing."
+    )
 
 
 def _window_of(node: ast.AST, windows: dict[str, object]):
@@ -235,7 +273,23 @@ def _check_assignment(
     known_windows: dict[str, Window] | None = None,
 ) -> list[Finding]:
     names = assigned_names(node)
-    ratio = _as_ratio(node.value)
+    return _check_ratio(
+        module, node, node.value, facts, known_windows, label=names[0] if names else "acwr"
+    )
+
+
+def _check_ratio(
+    module: Module,
+    node: ast.stmt,
+    expression: ast.AST,
+    facts: ModuleFacts,
+    known_windows: dict[str, Window] | None = None,
+    *,
+    label: str,
+) -> list[Finding]:
+    """Check one ``acute / chronic`` expression, however it is being used."""
+    names = [label]
+    ratio = _as_ratio(expression)
     if ratio is None:
         return []
     known_windows = known_windows or {}
@@ -289,11 +343,16 @@ def _check_assignment(
 
     overlap = _overlap_days(acute, chronic)
     if overlap is None or overlap > 0:
+        contained = overlap is not None and acute.size is not None and overlap >= acute.size
         findings.append(
             Finding(
                 check_id="AC001",
                 category=Category.ACWR_COUPLING,
-                title="Coupled acute:chronic ratio — the acute window is inside the chronic window",
+                title=(
+                    "Coupled acute:chronic ratio — the acute window is inside the chronic window"
+                    if contained
+                    else "Coupled acute:chronic ratio — the windows share observations"
+                ),
                 severity=Severity.CRITICAL,
                 confidence=Confidence.HIGH if overlap else Confidence.MEDIUM,
                 file=module.relative,
@@ -426,6 +485,15 @@ def _uncoupled_chronic(acute: Window, chronic: Window) -> int:
 
 def _coupling_mechanism(acute: Window, chronic: Window, overlap: int | None) -> str:
     if acute.size and chronic.size and overlap:
+        if overlap < acute.size:
+            return (
+                f"The acute window covers {acute.size} observations and the chronic window "
+                f"{chronic.size}, and {overlap} of them fall in both. The chronic term is "
+                "offset but not far enough to clear the acute one, so part of the numerator "
+                "is still counted in the denominator and the ratio moves with acute load "
+                "for arithmetic reasons as well as physiological ones. Offsetting the "
+                f"chronic window by the full {acute.size} removes the overlap entirely."
+            )
         weeks = chronic.size / acute.size if acute.size else 4
         return (
             f"The acute window is the last {acute.size} observations and the chronic window "

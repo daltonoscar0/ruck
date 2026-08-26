@@ -13,7 +13,7 @@ import ast
 from ruck.audit.astutils import Module, call_name, keyword_value, literal
 from ruck.audit.checks.base import (
     ModuleFacts,
-    is_label_name,
+    is_probable_label_name,
     normalise,
 )
 from ruck.audit.models import Category, Confidence, Finding, Severity
@@ -38,8 +38,9 @@ SURVIVOR_VALUES: tuple[str, ...] = ("active", "available", "fit", "selected", "c
 
 def check(module: Module, facts: ModuleFacts) -> list[Finding]:
     findings: list[Finding] = []
+    filtering = _filtering_comparisons(module)
     for node in ast.walk(module.tree):
-        if isinstance(node, ast.Compare):
+        if isinstance(node, ast.Compare) and id(node) in filtering:
             findings.extend(_outcome_filter(module, node))
             findings.extend(_end_of_period_filter(module, node))
         if isinstance(node, ast.Call):
@@ -47,12 +48,40 @@ def check(module: Module, facts: ModuleFacts) -> list[Finding]:
     return findings
 
 
+def _filtering_comparisons(module: Module) -> set[int]:
+    """Comparisons that actually select rows from a frame.
+
+    `df[df.injured == 0]` filters a population. `if label == "control":` and
+    `if y == 0:` do not — they are ordinary control flow, and a survivorship
+    check that fires on them will fire on every Python file ever written.
+    """
+    selecting: set[int] = set()
+
+    def mark(node: ast.AST | None) -> None:
+        if node is None:
+            return
+        for inner in ast.walk(node):
+            if isinstance(inner, ast.Compare):
+                selecting.add(id(inner))
+
+    for node in ast.walk(module.tree):
+        if isinstance(node, ast.Subscript):
+            # df[mask] and df.loc[mask]
+            mark(node.slice)
+        elif isinstance(node, ast.Call):
+            name = call_name(node)
+            if name in {"query", "where", "mask", "filter", "loc", "drop"}:
+                for argument in node.args:
+                    mark(argument)
+    return selecting
+
+
 def _outcome_filter(module: Module, node: ast.Compare) -> list[Finding]:
     """`df[df.injured == 0]` and friends: selecting the population by the outcome."""
     if len(node.ops) != 1 or not isinstance(node.ops[0], (ast.Eq, ast.NotEq)):
         return []
     names = _names_in(node.left) + _strings_in(node.left)
-    if not any(is_label_name(name) for name in names):
+    if not any(is_probable_label_name(name) for name in names):
         return []
     value = literal(node.comparators[0])
     negative = value in (0, False, "0", "no", "none", None)

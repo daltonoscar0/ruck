@@ -361,3 +361,228 @@ def test_noise_directories_below_the_root_are_still_skipped(tmp_path):
     (tmp_path / "build" / "b.py").write_text("x = 1\n")
     result, _ = audit_repo(tmp_path, use_hindsight=False)
     assert result.files_scanned == 1
+
+
+# -- false positives on correct code --------------------------------------
+
+
+CORRECT_PIPELINE = """
+import pandas as pd
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.model_selection import StratifiedGroupKFold, TimeSeriesSplit, cross_val_score
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+
+LONGEST_FEATURE_WINDOW = 28
+
+
+def build_label(panel):
+    panel["injury_next_7d"] = panel.groupby("player_id")["injured"].shift(-7).fillna(0).astype(int)
+    return panel
+
+
+def build_features(panel):
+    past = panel.groupby("player_id")["total_distance"].shift(1)
+    acute = past.rolling(7, min_periods=7).sum()
+    chronic = past.shift(7).rolling(21, min_periods=21).sum() / 3
+    features = pd.DataFrame(index=panel.index)
+    features["acute_load"] = acute
+    features["acwr"] = acute / chronic
+    features["target_load"] = panel["target_load"]
+    return features
+
+
+def make_split(X, y):
+    return TimeSeriesSplit(n_splits=5, gap=LONGEST_FEATURE_WINDOW)
+
+
+def evaluate(X, y, groups):
+    model = make_pipeline(StandardScaler(), HistGradientBoostingClassifier())
+    folds = StratifiedGroupKFold(n_splits=5)
+    return cross_val_score(model, X, y, groups=groups, cv=folds)
+"""
+
+
+def _audit_source(tmp_path, name: str, source: str):
+    (tmp_path / name).write_text(source)
+    result, _ = audit_repo(tmp_path, use_hindsight=False)
+    return result
+
+
+def test_a_correct_workload_pipeline_produces_no_findings(tmp_path):
+    """The whole point of a leakage checker is that clean code comes back clean."""
+    result = _audit_source(tmp_path, "pipeline.py", CORRECT_PIPELINE)
+    assert [f"{f.check_id} {f.line} {f.title}" for f in result.findings] == []
+
+
+def test_building_a_forward_label_with_a_negative_shift_is_not_lookahead(tmp_path):
+    result = _audit_source(
+        tmp_path,
+        "label.py",
+        "def build(panel):\n"
+        "    panel['injury_next_7d'] = panel['injured'].shift(-7)\n"
+        "    return panel\n",
+    )
+    assert "LA001" not in {f.check_id for f in result.findings}
+
+
+def test_a_negative_shift_into_a_feature_is_still_lookahead(tmp_path):
+    result = _audit_source(
+        tmp_path,
+        "feature.py",
+        "def build(panel):\n"
+        "    panel['next_session_load'] = panel['total_distance'].shift(-1)\n"
+        "    return panel\n",
+    )
+    assert "LA001" in {f.check_id for f in result.findings}
+
+
+def test_scalar_comparisons_are_not_survivorship(tmp_path):
+    result = _audit_source(
+        tmp_path,
+        "routing.py",
+        "def route(label, target, y):\n"
+        "    if label == 'control':\n        return 'A'\n"
+        "    if target == 'production':\n        return 'deploy'\n"
+        "    if y == 0:\n        return 'origin'\n"
+        "    return 'other'\n",
+    )
+    assert result.findings == []
+
+
+def test_filtering_a_frame_by_the_outcome_is_still_survivorship(tmp_path):
+    result = _audit_source(
+        tmp_path,
+        "cohort.py",
+        "def cohort(panel):\n    return panel[panel['injured'] == 0]\n",
+    )
+    assert "SV001" in {f.check_id for f in result.findings}
+
+
+def test_evaluation_metrics_are_not_label_bleed(tmp_path):
+    result = _audit_source(
+        tmp_path,
+        "reporting.py",
+        "def summarise(panel, predictions):\n"
+        "    positive_ratio = panel['injury_next_7d'].mean()\n"
+        "    weekly = panel.groupby('week')['injury_next_7d'].mean()\n"
+        "    brier = ((predictions - panel['injury_next_7d']) ** 2).mean()\n"
+        "    return positive_ratio, weekly, brier\n",
+    )
+    assert result.findings == []
+
+
+def test_a_prescribed_load_column_is_not_the_outcome(tmp_path):
+    result = _audit_source(
+        tmp_path,
+        "prescribed.py",
+        "FEATURE_COLUMNS = ['load_7d_mean', 'target_load', 'target_distance']\n"
+        "def build(panel):\n    X = panel[FEATURE_COLUMNS]\n    return X\n",
+    )
+    assert "LB001" not in {f.check_id for f in result.findings}
+
+
+def test_a_coordinate_pair_is_not_the_outcome(tmp_path):
+    result = _audit_source(
+        tmp_path,
+        "coords.py",
+        "def features(tracking):\n    X = tracking[['x', 'y']]\n    return X\n",
+    )
+    assert "LB001" not in {f.check_id for f in result.findings}
+
+
+def test_a_named_embargo_counts_as_an_embargo(tmp_path):
+    result = _audit_source(
+        tmp_path,
+        "cv.py",
+        "from sklearn.model_selection import TimeSeriesSplit\n"
+        "EMBARGO = 28\n"
+        "def build(panel):\n"
+        "    return panel['load'].rolling(28).sum()\n"
+        "def split():\n"
+        "    return TimeSeriesSplit(n_splits=5, gap=EMBARGO).split\n",
+    )
+    assert "CV005" not in {f.check_id for f in result.findings}
+
+
+def test_a_scaler_fitted_on_the_training_rows_is_not_flagged(tmp_path):
+    result = _audit_source(
+        tmp_path,
+        "scaler.py",
+        "from sklearn.model_selection import train_test_split\n"
+        "from sklearn.preprocessing import StandardScaler\n"
+        "def fit_scaler(X_train):\n"
+        "    scaler = StandardScaler()\n"
+        "    scaler.fit(X_train)\n"
+        "    return scaler\n"
+        "def make_split(X, y):\n"
+        "    return train_test_split(X, y, shuffle=False)\n",
+    )
+    assert "LA006" not in {f.check_id for f in result.findings}
+
+
+def test_a_scaler_fitted_on_the_data_that_is_split_is_flagged(tmp_path):
+    result = _audit_source(
+        tmp_path,
+        "scaler.py",
+        "from sklearn.model_selection import train_test_split\n"
+        "from sklearn.preprocessing import StandardScaler\n"
+        "def run(X, y):\n"
+        "    scaler = StandardScaler()\n"
+        "    X_scaled = scaler.fit_transform(X)\n"
+        "    return train_test_split(X_scaled, y)\n",
+    )
+    assert "LA006" in {f.check_id for f in result.findings}
+
+
+# -- scoping and forms ----------------------------------------------------
+
+
+def test_a_finding_quotes_the_windows_at_its_own_line(tmp_path):
+    """Window variables are local; a finding must not borrow a sibling's numbers."""
+    result = _audit_source(
+        tmp_path,
+        "two.py",
+        "def short(panel):\n"
+        "    acute = panel['load'].rolling(2).sum()\n"
+        "    chronic = panel['load'].rolling(3).sum()\n"
+        "    return acute / chronic\n"
+        "def standard(panel):\n"
+        "    acute = panel['load'].rolling(7).sum()\n"
+        "    chronic = panel['load'].rolling(28).sum() / 4\n"
+        "    return acute / chronic\n",
+    )
+    by_line = {f.line: f for f in result.findings if f.check_id == "AC001"}
+    assert by_line[4].evidence["acute_window"] == 2
+    assert by_line[4].evidence["chronic_window"] == 3
+    assert by_line[8].evidence["acute_window"] == 7
+    assert by_line[8].evidence["chronic_window"] == 28
+
+
+def test_a_ratio_returned_directly_is_checked(tmp_path):
+    result = _audit_source(
+        tmp_path,
+        "ret.py",
+        "def acwr(panel):\n"
+        "    acute = panel['load'].rolling(7).sum()\n"
+        "    chronic = panel['load'].rolling(28).sum()\n"
+        "    return acute / chronic\n",
+    )
+    assert "AC001" in {f.check_id for f in result.findings}
+
+
+def test_the_suggested_slice_fix_matches_the_slice_convention_used(tmp_path):
+    result = _audit_source(
+        tmp_path,
+        "slices.py",
+        "def acwr(series, acute=7, chronic=28):\n"
+        "    out = []\n"
+        "    for i in range(len(series)):\n"
+        "        a = series[i - acute : i]\n"
+        "        c = series[i - chronic : i]\n"
+        "        out.append(sum(a) / len(a) / (sum(c) / len(c)))\n"
+        "    return out\n",
+    )
+    fix = next(f for f in result.findings if f.check_id == "AC002").fix
+    # The source has no `+ 1`, so neither should the fix.
+    assert "series[i - chronic : i - acute]" in fix

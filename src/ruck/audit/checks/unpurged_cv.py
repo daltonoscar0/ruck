@@ -164,8 +164,14 @@ def _default_cv(
 def _no_embargo(module: Module, node: ast.Call, facts: ModuleFacts) -> list[Finding]:
     if not facts.has_rolling:
         return []
-    gap = literal(keyword_value(node, "gap"))
+    gap_node = keyword_value(node, "gap")
+    gap = literal(gap_node)
     if isinstance(gap, int) and gap > 0:
+        return []
+    if gap_node is not None and gap is None:
+        # `gap=LONGEST_FEATURE_WINDOW` is an embargo whose size this checker
+        # cannot read. Reporting "no gap" because it is not an integer literal
+        # is simply false.
         return []
     return [
         Finding(

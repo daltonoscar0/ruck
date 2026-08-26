@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from ruck.audit.astutils import (
     Module,
@@ -150,7 +150,28 @@ NOT_LABELS: frozenset[str] = frozenset(
 )
 
 
+#: Label tokens that mean the outcome only in context. `target_load` is a
+#: prescribed session load, `target_distance` is a GPS target, and `y` is half
+#: of a coordinate pair as often as it is a label.
+GENERIC_LABEL_TOKENS: frozenset[str] = frozenset({"label", "target", "outcome"})
+
+#: The exact spellings where a generic token really does mean the outcome.
+EXACT_GENERIC_LABELS: frozenset[str] = frozenset(
+    {"y", "label", "labels", "target", "targets", "outcome", "outcomes"}
+)
+
+SPECIFIC_LABEL_TOKENS: tuple[str, ...] = tuple(
+    t for t in LABEL_TOKENS if t not in GENERIC_LABEL_TOKENS
+)
+
+
 def is_label_name(name: object) -> bool:
+    """Permissive: could this name be the outcome?
+
+    Used to decide whether a *file* is doing outcome modelling at all. Checks
+    that put a name in a finding use :func:`is_probable_label_name`, which does
+    not fire on `target_load`.
+    """
     text = normalise(name)
     if text in NOT_LABELS:
         return False
@@ -159,6 +180,25 @@ def is_label_name(name: object) -> bool:
     if _Y_VARIABLE.match(text):
         return True
     return looks_like(name, LABEL_TOKENS)
+
+
+def is_specific_label_name(name: object) -> bool:
+    """A name that means the outcome whatever the surrounding code does."""
+    text = normalise(name)
+    if text in NOT_LABELS:
+        return False
+    if _Y_VARIABLE.match(text) and text != "y":
+        return True
+    return looks_like(name, SPECIFIC_LABEL_TOKENS)
+
+
+def is_probable_label_name(name: object) -> bool:
+    """Specific outcome names, plus the exact generic spellings.
+
+    `injury_next_7d` and `y_train` qualify; `target_load` and `target_distance`
+    do not, because they are prescriptions, not outcomes.
+    """
+    return is_specific_label_name(name) or normalise(name) in EXACT_GENERIC_LABELS
 
 
 def is_workload_name(name: object) -> bool:
@@ -371,16 +411,76 @@ def find_window(node: ast.AST) -> Window | None:
     )
 
 
-def find_pandas_windows(scope: ast.AST) -> dict[str, Window]:
+def scope_map(tree: ast.AST) -> dict[int, ast.AST]:
+    """Map every node to the function that owns it, or to the module.
+
+    Window variables are local. Resolving `acute` against the last definition
+    of that name *anywhere in the file* means a finding can quote another
+    function's window sizes, and the report's whole value is that its numbers
+    are the ones at the cited line.
+    """
+    owner: dict[int, ast.AST] = {id(tree): tree}
+
+    def walk(node: ast.AST, scope: ast.AST) -> None:
+        for child in ast.iter_child_nodes(node):
+            inner = (
+                child
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda))
+                else scope
+            )
+            owner[id(child)] = inner
+            walk(child, inner)
+
+    walk(tree, tree)
+    return owner
+
+
+def find_shifted_names(scope: ast.AST, scopes: dict[int, ast.AST] | None = None) -> dict[str, int]:
+    """Variables that already hold a shifted series, and by how much.
+
+    `past = panel.groupby("player_id")["load"].shift(1)` followed by
+    `acute = past.rolling(7).sum()` is the correct way to write a lagged
+    feature. The shift and the window are in different statements, so a checker
+    that only looks inside one expression sees an unshifted window and calls
+    correct code a leak.
+    """
+    shifts: dict[str, int] = {}
+    for node in ast.walk(scope):
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        if scopes is not None and scopes.get(id(node)) is not scope:
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Name):
+            continue
+        if find_window(node.value) is not None:
+            continue  # this is a window, not a plain lag
+        total = 0
+        for inner in ast.walk(node.value):
+            if isinstance(inner, ast.Call) and _called(inner) == "shift":
+                amount = int_arg(inner, 0, "periods")
+                total += amount if amount is not None else 1
+        if total:
+            shifts[target.id] = total
+    return shifts
+
+
+def find_pandas_windows(
+    scope: ast.AST, scopes: dict[int, ast.AST] | None = None
+) -> dict[str, Window]:
     """Map variable names to the rolling window they were assigned from.
 
     `acute = load.rolling(7).sum()` followed by `acwr = acute / chronic` is the
     common shape, and a checker that only looks at one statement at a time sees
-    neither window at the division.
+    neither window at the division. Only assignments belonging to ``scope``
+    itself are used, so a name defined in a sibling function cannot answer for
+    this one.
     """
     windows: dict[str, Window] = {}
     for node in ast.walk(scope):
         if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        if scopes is not None and scopes.get(id(node)) is not scope:
             continue
         target = node.targets[0]
         name = target.id if isinstance(target, ast.Name) else None
@@ -389,7 +489,24 @@ def find_pandas_windows(scope: ast.AST) -> dict[str, Window]:
         window = find_window(node.value)
         if window is not None:
             windows[name] = window
+
+    # Second pass: fold in lags that were applied when the source variable was
+    # built, so `past = s.shift(1)` / `acute = past.rolling(7).sum()` reads as a
+    # window shifted by one rather than as one ending on the current row.
+    lagged = find_shifted_names(scope, scopes)
+    if lagged:
+        for name, window in windows.items():
+            for referenced in _names_in_expression(window.node):
+                if referenced in lagged:
+                    windows[name] = replace(
+                        window, shifted_by=window.shifted_by + lagged[referenced]
+                    )
+                    break
     return windows
+
+
+def _names_in_expression(node: ast.AST) -> set[str]:
+    return {inner.id for inner in ast.walk(node) if isinstance(inner, ast.Name)}
 
 
 def resolve_window(node: ast.AST, known: dict[str, Window]) -> Window | None:
@@ -441,21 +558,32 @@ class SliceWindow:
     size_value: int | None
     end_offset: int
     index_var: str | None
+    #: The bound expressions as written. The suggested fix is built from these
+    #: rather than from an assumed `i - n + 1` convention, so it is correct for
+    #: whichever way the window was spelled.
+    lower_node: ast.AST | None = None
+    upper_node: ast.AST | None = None
 
     @property
     def size_key(self) -> str:
         return self.size_expr or (str(self.size_value) if self.size_value is not None else "?")
 
 
-def find_slice_windows(scope: ast.AST) -> dict[str, SliceWindow]:
+def find_slice_windows(
+    scope: ast.AST, scopes: dict[int, ast.AST] | None = None
+) -> dict[str, SliceWindow]:
     """Map variable names to the trailing slice window they are assigned from.
 
     Also follows one level of aggregation, so ``acute = sum(w) / len(w)`` is
     recorded as the same window as ``w``.
     """
+
+    def owned(node: ast.AST) -> bool:
+        return scopes is None or scopes.get(id(node)) is scope
+
     direct: dict[str, SliceWindow] = {}
     for node in ast.walk(scope):
-        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1 or not owned(node):
             continue
         target = node.targets[0]
         if not isinstance(target, ast.Name):
@@ -466,7 +594,7 @@ def find_slice_windows(scope: ast.AST) -> dict[str, SliceWindow]:
 
     resolved = dict(direct)
     for node in ast.walk(scope):
-        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1 or not owned(node):
             continue
         target = node.targets[0]
         if not isinstance(target, ast.Name) or target.id in resolved:
@@ -529,6 +657,8 @@ def parse_slice_window(node: ast.AST) -> SliceWindow | None:
         # Slices are half-open, so `: i + 1` ends on the current index.
         end_offset=high_const - 1,
         index_var=low_index,
+        lower_node=lower,
+        upper_node=upper,
     )
 
 
