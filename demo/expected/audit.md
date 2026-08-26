@@ -324,7 +324,7 @@ scaler.fit_transform(X)
 
 **Why this matters**
 
-`scaler.fit_transform` runs at line 86, before the split at line 89. The transformer's statistics — means, quantiles, imputation values, selected features — are computed over rows that end up in the test set, so the test set is no longer held out. On a workload panel this is usually worth a few points of AUC that do not survive deployment.
+`scaler.fit_transform` is fitted on `X`, which is the same data handed to the splitter at line 89. The transformer's statistics — means, quantiles, imputation values, selected features — are therefore computed over rows that end up in the test set, so the test set is no longer held out. On a workload panel this is usually worth a few points of AUC that do not survive deployment.
 
 **Fix**
 

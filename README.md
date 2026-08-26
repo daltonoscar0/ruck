@@ -74,25 +74,26 @@ Measured on a **synthetic** corpus (see [Data](#data)): 80 generated matches, sp
 | Model | Test perplexity |
 | --- | ---: |
 | Causal transformer (1,080,320 params) | **3.74** |
-| Add-k smoothed bigram | 9.60 |
-| Unigram | 478.95 |
+| Add-k smoothed bigram | 3.94 |
+| Unigram | 478.36 |
 
-Over 9,584 test tokens, vocabulary 1986. 
-The transformer beats the bigram by 2.6x, so it is using more than the previous event.
+Over 9,584 test tokens, vocabulary 1986. The count baselines choose their smoothing constant on the same validation split the transformer early-stops against (bigram k = 0.0003); a fixed k would hand the transformer a win it has not earned.
+
+**The transformer beats the bigram by only 1.05x.** Almost all the predictable structure in this corpus is in the previous event alone, which is what you would expect from a generator whose next step depends mostly on the last one — a real corpus may or may not behave the same way. On this evidence the transformer is not earning its million parameters, and the honest reading is that the bigram is the model to beat.
 
 ### Downstream: points within 3 phases
 
 | Predictor | ROC AUC | Average precision | Brier |
 | --- | ---: | ---: | ---: |
-| GBM on hand features | 0.885 | 0.476 | 0.0670 |
-| LM probe (frozen transformer) | 0.860 | 0.404 | 0.0690 |
-| Base rate | 0.500 | 0.098 | 0.0884 |
+| GBM on hand features | 0.866 | 0.419 | 0.0722 |
+| LM probe (frozen transformer) | 0.846 | 0.375 | 0.0739 |
+| Base rate | 0.500 | 0.102 | 0.0914 |
 
-8,499 in-play events, base rate 0.098. Both predictors are fitted on the same match-disjoint split, and both are strictly causal: the probe reads the frozen model's hidden state at that event, which is computed from that event and everything before it and nothing after.
+8,455 in-play events, base rate 0.102. Both predictors are fitted on the same match-disjoint split, and both are strictly causal: the probe reads the frozen model's hidden state at that event, which is computed from that event and everything before it and nothing after. Events that *are* a score are excluded from the evaluated rows — predicting "will they score?" at the moment the points go up is not a prediction, and leaving those rows in inflated the reported average precision.
 
 **The GBM on hand features wins.** A hand-built feature set — field position, phase count, what has happened in the possession so far — carries more of this signal than a linear read-out of the language model's state. The LM probe is behind it, and saying so is the point of running the comparison.
 
-Trained in 510s, best validation perplexity 3.75 at epoch 33 of 38.
+Trained in 726s, best validation perplexity 3.75 at epoch 33 of 38.
 
 <!-- metrics:end -->
 

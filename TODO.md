@@ -70,3 +70,23 @@ manual step. Anything here is deliberate; nothing here is a silent gap.
 - `CV004` (no athlete grouping) is a whole-file heuristic and fires at low
   confidence. It is deliberately noisy-but-cheap; suppress it with `--only` if
   it does not apply to your layout.
+
+- **Dataflow stops at the function boundary.** Window variables are resolved
+  within the scope that defines them, which is what stops a finding quoting a
+  sibling function's window sizes. The cost is the mirror case: an ACWR whose
+  acute and chronic terms are built by two helper functions and divided in a
+  third is not recognised as coupled. Inlining the helpers, or writing the
+  ratio next to the windows, gets it seen. Whole-program dataflow is the fix
+  and is not in v0.1.0.
+
+- The checks read one repository at a time and take names at face value. A
+  column called `total_distance` that actually holds session RPE will be
+  described as distance in the purge list.
+
+## Reviewed against
+
+The repository was reviewed by an adversarial pass that wrote correct workload
+code to hunt for false positives and leaky code to hunt for misses; every check
+now has a regression test in both directions (`tests/test_audit.py`). Findings
+from that pass that are fixed are not listed here; the ones above are what is
+left.

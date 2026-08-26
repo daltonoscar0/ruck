@@ -2,7 +2,7 @@
 
 **Target:** `/Users/oscardalton/ruck/demo/audit_fixtures`  
 **Scanned:** 25 Python files · 25 checks · ruck native checks  
-**Generated:** 2026-08-25 23:22 UTC
+**Generated:** 2026-08-26 00:34 UTC
 
 The target directory is only ever read. Files are parsed with `ast`; nothing in them is imported or executed.
 
@@ -54,7 +54,7 @@ The two windows are slices of `series` that both end at the same index, with len
 
 **Fix**
 
-End the chronic slice where the acute one begins: `series[max(0, i - chronic + 1) : i - acute + 1]`. Compute both the coupled and uncoupled ratios for one season and compare before choosing.
+End the chronic slice where the acute one begins, so the two share no observations: `series[max(0, i - chronic + 1) : max(0, i - acute + 1)]`. Divide by its own length rather than the acute one's. Compute both the coupled and uncoupled ratios for one season and compare before choosing.
 
 ### 2. AC003 — Exponentially weighted ACWR shares every observation between numerator and denominator
 

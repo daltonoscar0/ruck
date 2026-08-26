@@ -10,7 +10,17 @@
     "test_matches": 8,
     "train_events": 71431,
     "val_events": 9206,
-    "test_events": 8847
+    "test_events": 8847,
+    "test_match_ids": [
+      "syn-20240203-029",
+      "syn-20240203-033",
+      "syn-20240203-041",
+      "syn-20240203-054",
+      "syn-20240203-056",
+      "syn-20240203-059",
+      "syn-20240203-069",
+      "syn-20240203-079"
+    ]
   },
   "tokenizer": {
     "vocab_size": 1986,
@@ -36,27 +46,29 @@
   "training": {
     "epochs_run": 38,
     "best_epoch": 33,
-    "best_val_perplexity": 3.7542661196974656,
-    "seconds": 509.7,
+    "best_val_perplexity": 3.7542619442501066,
+    "seconds": 726.1,
     "truncated_sequences": 0,
     "device": "mps",
     "platform": "macOS-26.3.1-arm64-arm-64bit"
   },
   "perplexity": {
     "transformer": {
-      "perplexity": 3.744031977264939,
-      "nats_per_token": 1.3201630995150202,
+      "perplexity": 3.7440324183725573,
+      "nats_per_token": 1.3201632173312128,
       "n_tokens": 9584
     },
     "bigram": {
-      "perplexity": 9.598946161112663,
-      "nats_per_token": 2.2616533175639892,
-      "n_tokens": 9584
+      "perplexity": 3.937537741099091,
+      "nats_per_token": 1.3705555891468542,
+      "n_tokens": 9584,
+      "smoothing_k": 0.0003
     },
     "unigram": {
-      "perplexity": 478.94731826800336,
-      "nats_per_token": 6.171590608623338,
-      "n_tokens": 9584
+      "perplexity": 478.35889457180986,
+      "nats_per_token": 6.170361276227065,
+      "n_tokens": 9584,
+      "smoothing_k": 1.0
     }
   },
   "downstream": {
@@ -65,28 +77,28 @@
       "base_rate": {
         "name": "base rate",
         "roc_auc": 0.5,
-        "average_precision": 0.09801153076832568,
-        "brier": 0.08844206131345761,
-        "n": 8499,
-        "positive_rate": 0.09801153076832568
+        "average_precision": 0.1017149615612064,
+        "brier": 0.09143097884993943,
+        "n": 8455,
+        "positive_rate": 0.1017149615612064
       },
       "gbm": {
         "name": "GBM on hand features",
-        "roc_auc": 0.8852065480509972,
-        "average_precision": 0.4755964500863949,
-        "brier": 0.06696305205858998,
-        "n": 8499,
-        "positive_rate": 0.09801153076832568
+        "roc_auc": 0.8664980020515333,
+        "average_precision": 0.419365048847275,
+        "brier": 0.07217623311797129,
+        "n": 8455,
+        "positive_rate": 0.1017149615612064
       },
       "lm_probe": {
         "name": "LM probe (frozen)",
-        "roc_auc": 0.8601352098366087,
-        "average_precision": 0.40358065260310366,
-        "brier": 0.06902536749839783,
-        "n": 8499,
-        "positive_rate": 0.09801153076832568
+        "roc_auc": 0.8463220907267632,
+        "average_precision": 0.37479154921874347,
+        "brier": 0.07391861081123352,
+        "n": 8455,
+        "positive_rate": 0.1017149615612064
       }
     }
   },
-  "total_seconds": 643.7
+  "total_seconds": 1033.1
 }
