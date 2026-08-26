@@ -21,7 +21,12 @@ import pandas as pd
 from ruck.ingest.espn import LEAGUES, list_matches, load_espn
 from ruck.ingest.generic_csv import LoadReport, load_csv
 from ruck.ingest.http import Fetcher, OfflineCacheMiss
-from ruck.ingest.rugbypy import NoEventDataError, load_rugbypy, looks_like_events
+from ruck.ingest.rugbypy import (
+    NoEventDataError,
+    describe,
+    load_rugbypy,
+    looks_like_events,
+)
 
 __all__ = [
     "LEAGUES",
@@ -82,12 +87,15 @@ def _sniff(text: str) -> str:
     # pandas decompresses by extension, so a .csv.gz is just a CSV.
     suffixes = [s.lower() for s in path.suffixes]
     if path.exists() and (".csv" in suffixes):
-        # A rugbypy summary export is still a CSV; let the rugbypy loader own it
-        # so the error message is the useful one.
+        # A rugbypy summary export is still a CSV; hand it to the rugbypy loader
+        # so the error message is the useful one. But only when it actually
+        # looks like one — an event export missing a single required column
+        # should get `load_csv`'s "missing required column" message, not a
+        # lecture about box scores.
         try:
             head = pd.read_csv(path, nrows=5)
         except Exception:
             return "csv"
-        if not looks_like_events(head):
+        if not looks_like_events(head) and describe(head) != "summary":
             return "rugbypy"
     return "csv"

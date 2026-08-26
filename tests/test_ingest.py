@@ -333,3 +333,28 @@ def test_load_parses_an_espn_target():
 def test_load_rejects_a_malformed_espn_target():
     with pytest.raises(ValueError, match="espn target"):
         load("espn:a:b:c")
+
+
+def test_an_event_csv_missing_one_column_says_which_one(tmp_path):
+    """Not "this is a box score" — the user is one column away from working."""
+    path = tmp_path / "nearly.csv"
+    path.write_text("t,action,x,y,phase,outcome\n0,carry,40,12,0,retained\n")
+    with pytest.raises(ValueError, match=r"missing required column\(s\) \['team'\]"):
+        load(path)
+
+
+def test_a_real_summary_frame_still_routes_to_the_rugbypy_message(tmp_path):
+    path = tmp_path / "team_stats.csv"
+    pd.DataFrame(
+        [
+            {
+                "team": "Munster",
+                "match_id": "1",
+                "tackles": 140,
+                "rucks_won": 88,
+                "metres_carried": 402,
+            }
+        ]
+    ).to_csv(path, index=False)
+    with pytest.raises(NoEventDataError, match="team-stats"):
+        load(path)

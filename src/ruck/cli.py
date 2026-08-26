@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 from ruck import __version__
+from ruck.ingest import NoEventDataError, OfflineCacheMiss
 
 EXIT_OK = 0
 EXIT_FINDINGS = 1
@@ -106,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         print("interrupted", file=sys.stderr)
         return EXIT_ERROR
-    except (FileNotFoundError, ValueError) as exc:
+    except (FileNotFoundError, ValueError, NoEventDataError, OfflineCacheMiss) as exc:
         print(f"ruck: {exc}", file=sys.stderr)
         return EXIT_ERROR
 
