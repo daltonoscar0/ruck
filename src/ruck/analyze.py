@@ -18,7 +18,12 @@ from ruck.report.timestamps import write_csv as write_clip_csv
 from ruck.tokenizer import Tokenizer, Vocab
 
 #: Where `ruck demo` and a default `ruck analyze` look for the shipped model.
+#: In a wheel the demo data is packaged inside `ruck/_demo`; in an editable
+#: install it is still up at the repo root, so that is tried too. Without the
+#: third candidate the command works from the repo root and nowhere else,
+#: which is a confusing way for a bundled model to behave.
 BUNDLED_MODEL_DIR = Path(__file__).parent / "_demo" / "model"
+SOURCE_TREE_MODEL_DIR = Path(__file__).resolve().parents[2] / "demo" / "model"
 REPO_MODEL_DIR = Path("demo/model")
 
 
@@ -78,7 +83,9 @@ class LoadedModel:
 
 def find_model_dir(explicit: str | Path | None = None) -> Path:
     """Locate a model directory: the one given, the repo's, or the packaged one."""
-    candidates = [Path(explicit)] if explicit else [REPO_MODEL_DIR, BUNDLED_MODEL_DIR]
+    candidates = (
+        [Path(explicit)] if explicit else [REPO_MODEL_DIR, BUNDLED_MODEL_DIR, SOURCE_TREE_MODEL_DIR]
+    )
     for candidate in candidates:
         if (candidate / "phase_lm.pt").exists() and (candidate / "vocab.json").exists():
             return candidate

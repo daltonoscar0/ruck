@@ -246,6 +246,7 @@ def test_a_missing_target_is_an_error_not_a_traceback(tmp_path, capsys):
 def test_find_model_dir_explains_itself_when_there_is_no_model(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("ruck.analyze.BUNDLED_MODEL_DIR", tmp_path / "absent")
+    monkeypatch.setattr("ruck.analyze.SOURCE_TREE_MODEL_DIR", tmp_path / "absent")
     with pytest.raises(FileNotFoundError, match="train_demo_model"):
         find_model_dir()
 
@@ -320,3 +321,11 @@ def test_an_unknown_team_is_an_error_not_an_empty_report(tmp_path):
 def test_readme_records_the_smoothing_the_baseline_chose():
     metrics = json.loads((MODEL_DIR / "metrics.json").read_text())
     assert "smoothing_k" in metrics["perplexity"]["bigram"]
+
+
+@needs_model
+def test_the_bundled_model_is_found_from_any_directory(tmp_path, monkeypatch):
+    """An editable install must not only work from the repo root."""
+    monkeypatch.chdir(tmp_path)
+    assert not (tmp_path / "demo").exists()
+    assert find_model_dir().exists()
