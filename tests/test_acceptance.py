@@ -267,3 +267,56 @@ def test_compare_writes_an_overlay_naming_both_matches(tmp_path):
     assert raw.startswith(b"%PDF")
     # Each column is named for the match behind it, not "All teams" twice.
     assert b"All teams" not in raw
+
+
+@needs_model
+def test_the_demo_scores_a_match_the_model_never_saw(demo_output):
+    """In-sample surprisal would make the whole report a memorisation check."""
+    metrics = json.loads((MODEL_DIR / "metrics.json").read_text())
+    held_out = set(metrics["data"]["test_match_ids"])
+    assert held_out, "training must record which matches were held out"
+
+    import pandas as pd
+
+    match = pd.read_csv(demo_output["match"])
+    assert set(match["match_id"].astype(str)) <= held_out
+
+
+@needs_model
+def test_a_real_match_is_never_benchmarked_against_generated_events(tmp_path):
+    """The bundled reference corpus is synthetic; a real match must not use it."""
+    from ruck.analyze import analyze
+
+    result = analyze(
+        REPO / "tests" / "fixtures" / "mini_match.csv",
+        out=tmp_path / "real.pdf",
+        device="cpu",
+    )
+    assert result.reference_shape is None
+    assert result.context.reference_note
+    assert "generated" in result.context.reference_note
+
+    raw = (tmp_path / "real.pdf").read_bytes()
+    # The events are real, so no synthetic-data banner — but the model is
+    # generated and the report has to say so.
+    assert b"SYNTHETIC MODEL" in raw
+    assert b"Competition average" not in raw
+
+
+@needs_model
+def test_an_unknown_team_is_an_error_not_an_empty_report(tmp_path):
+    from ruck.analyze import analyze
+
+    with pytest.raises(ValueError, match="does not appear"):
+        analyze(
+            REPO / "tests" / "fixtures" / "mini_match.csv",
+            team="Toulouse",
+            out=tmp_path / "nope.pdf",
+            device="cpu",
+        )
+
+
+@needs_model
+def test_readme_records_the_smoothing_the_baseline_chose():
+    metrics = json.loads((MODEL_DIR / "metrics.json").read_text())
+    assert "smoothing_k" in metrics["perplexity"]["bigram"]

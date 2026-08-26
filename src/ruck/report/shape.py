@@ -47,7 +47,10 @@ class ShapeSummary:
     def as_rows(self) -> list[tuple[str, float | None]]:
         """Flat metric rows, for tabling against a reference."""
         rows: list[tuple[str, float | None]] = [
-            ("Carries per possession", self.carries_per_possession),
+            (
+                "Carries per possession",
+                self.carries_per_possession if self.carries else None,
+            ),
             ("Passes per carry", self.passes_per_carry),
             ("Kicks per 100 carries", self.kicks_per_100_carries),
             ("Kick share of ball-in-play", self.kick_share_of_ball_in_play),
@@ -114,20 +117,25 @@ def team_shape(events: pd.DataFrame, team: str | None = None) -> ShapeSummary:
         carries_per_possession=n_carries / n_possessions if n_possessions else float("nan"),
     )
 
-    positioned = carries[carries["x"].notna() & carries["y"].notna()]
-    if not positioned.empty:
-        zones = [
-            zone_of(float(x), float(y))
-            for x, y in zip(positioned["x"], positioned["y"], strict=True)
+    # Territory and metres gained need x only. A source that records how far up
+    # the field a carry was but not how wide should still get those sections,
+    # rather than a page saying it has no coordinates at all.
+    along = carries[carries["x"].notna()]
+    if not along.empty:
+        bands = [zone_of(float(x), 35.0).split(":")[0] for x in along["x"]]
+        summary.territory_share = {band: float(bands.count(band)) / len(bands) for band in X_LABELS}
+        summary.metres_per_carry = _metres_per_carry(frame)
+
+    across = carries[carries["x"].notna() & carries["y"].notna()]
+    if not across.empty:
+        channels = [
+            zone_of(float(x), float(y)).split(":")[1]
+            for x, y in zip(across["x"], across["y"], strict=True)
         ]
-        channels = [z.split(":")[1] for z in zones]
-        bands = [z.split(":")[0] for z in zones]
         summary.width_share = {
             channel: float(channels.count(channel)) / len(channels) for channel in Y_LABELS
         }
-        summary.territory_share = {band: float(bands.count(band)) / len(bands) for band in X_LABELS}
-        summary.mean_width_offset = float(np.abs(positioned["y"].astype(float) - 35.0).mean())
-        summary.metres_per_carry = _metres_per_carry(frame)
+        summary.mean_width_offset = float(np.abs(across["y"].astype(float) - 35.0).mean())
     return summary
 
 
@@ -170,10 +178,20 @@ def compare_to_reference(match: ShapeSummary, reference: ShapeSummary) -> pd.Dat
 
 
 def competition_reference(
-    corpus: pd.DataFrame, *, exclude_match: str | None = None
+    corpus: pd.DataFrame,
+    *,
+    exclude_matches: set[str] | str | None = None,
 ) -> ShapeSummary:
-    """Shape of the rest of the competition, with the match under review removed."""
-    frame = corpus if exclude_match is None else corpus[corpus["match_id"] != exclude_match]
+    """Shape of the rest of the competition, with the match under review removed.
+
+    Takes a set, because a frame handed to `analyze` can hold more than one
+    match and leaving the others in would benchmark them against themselves.
+    """
+    if exclude_matches is None:
+        frame = corpus
+    else:
+        excluded = {exclude_matches} if isinstance(exclude_matches, str) else set(exclude_matches)
+        frame = corpus[~corpus["match_id"].astype(str).isin(excluded)]
     summary = team_shape(frame)
     summary.team = "Competition average"
     return summary

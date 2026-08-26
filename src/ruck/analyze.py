@@ -35,6 +35,16 @@ class LoadedModel:
     metrics: dict[str, object] = field(default_factory=dict)
     directory: Path | None = None
 
+    def trained_on_synthetic(self) -> bool:
+        """True when the shipped metrics say the training corpus was generated.
+
+        A report has to say this even when the match being analysed is real,
+        because it is the model's surprisal that every number on the timeline
+        comes from.
+        """
+        data = self.metrics.get("data")
+        return bool(isinstance(data, dict) and data.get("synthetic"))
+
     def model_card(self) -> dict[str, object]:
         """Flatten the metrics file into the rows the PDF's model card prints."""
         card: dict[str, object] = {
@@ -135,6 +145,14 @@ def analyze(
     if events.empty:
         raise ValueError(f"{target}: no events could be loaded ({report.summary()})")
 
+    if team is not None:
+        available = sorted(events["team"].dropna().astype(str).unique())
+        if team not in available:
+            raise ValueError(
+                f"--team {team!r} does not appear in {target}. Teams in this match: "
+                + (", ".join(available) if available else "none recorded")
+            )
+
     loaded = model if isinstance(model, LoadedModel) else load_model(model)
     scored = event_surprisal(events, loaded.tokenizer, loaded.model, device=device)
     timeline = phase_timeline(scored if team is None else scored[scored["team"] == team])
@@ -143,7 +161,7 @@ def analyze(
     )
 
     match_shape = team_shape(events, team)
-    reference_shape = _reference_shape(reference, loaded, events)
+    reference_shape, reference_note = _reference_shape(reference, loaded, events)
 
     context = ReportContext(
         match_id=str(events["match_id"].iloc[0]),
@@ -155,6 +173,8 @@ def analyze(
         synthetic=_is_synthetic(events),
         load_notes=list(report.notes),
         model_card=loaded.model_card(),
+        model_is_synthetic=loaded.trained_on_synthetic(),
+        reference_note=reference_note,
     )
 
     analysis = Analysis(
@@ -185,20 +205,47 @@ def analyze(
 
 def _reference_shape(
     reference: str | Path | None, loaded: LoadedModel, events: pd.DataFrame
-) -> ShapeSummary | None:
-    """Competition shape, from an explicit corpus or the model's training corpus."""
-    path: Path | None = None
-    if reference is not None:
-        path = Path(reference)
-    elif loaded.directory is not None:
-        for name in ("corpus.csv.gz", "corpus.csv"):
-            if (loaded.directory / name).exists():
-                path = loaded.directory / name
-                break
-    if path is None or not path.exists():
-        return None
+) -> tuple[ShapeSummary | None, str | None]:
+    """Competition shape, and a note when there is none.
+
+    The model ships with the corpus it was trained on, and falling back to it
+    is only honest when the match under review came from the same place. A real
+    match benchmarked against generated events, under a heading that reads
+    "Competition average", is a fabricated comparison however well-labelled the
+    rest of the report is — so that fallback is refused and the section says
+    what to pass instead.
+    """
+    path: Path | None = Path(reference) if reference is not None else None
+    if path is None:
+        bundled = _bundled_corpus(loaded)
+        if bundled is None:
+            return None, None
+        if not _is_synthetic(events):
+            return None, (
+                "No competition reference. The corpus bundled with the model is "
+                "generated, and benchmarking a real match against generated events "
+                "would be a fabricated comparison. Pass --reference with a corpus of "
+                "your own matches to fill this section in."
+            )
+        path = bundled
+    if not path.exists():
+        return None, f"Reference corpus {path} not found."
+
     corpus, _ = load_csv(path)
-    return competition_reference(corpus, exclude_match=str(events["match_id"].iloc[0]))
+    match_ids = set(events["match_id"].dropna().astype(str))
+    reference_shape = competition_reference(corpus, exclude_matches=match_ids)
+    if reference_shape.n_events == 0:
+        return None, f"Reference corpus {path.name} has nothing in it but this match."
+    return reference_shape, None
+
+
+def _bundled_corpus(loaded: LoadedModel) -> Path | None:
+    if loaded.directory is None:
+        return None
+    for name in ("corpus.csv.gz", "corpus.csv"):
+        if (loaded.directory / name).exists():
+            return loaded.directory / name
+    return None
 
 
 def _first(events: pd.DataFrame, column: str) -> str | None:

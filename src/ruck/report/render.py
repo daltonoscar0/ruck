@@ -67,6 +67,12 @@ class ReportContext:
     #: Model provenance: parameter count, perplexity, baselines.
     model_card: dict[str, object] = field(default_factory=dict)
     generated_at: str = ""
+    #: Set when the *model* was trained on generated data, whatever the match
+    #: being analysed is. Every surprisal number comes from the model, so this
+    #: has to reach the page even for a real match.
+    model_is_synthetic: bool = False
+    #: Why there is no competition comparison, when there is none.
+    reference_note: str | None = None
     #: An optional real-data appendix: ``{"label", "note", "columns", "rows"}``.
     #: Kept in its own section so measured events are never shown next to
     #: generated ones as if they were the same thing.
@@ -193,6 +199,17 @@ def _provenance_banner(context: ReportContext, styles: dict[str, ParagraphStyle]
         )
         background = WARN_BG
         style = styles["banner"]
+    elif context.model_is_synthetic:
+        # Real events, generated model. The events are trustworthy; the
+        # surprisal attached to them is only as good as what the model read.
+        text = (
+            "SYNTHETIC MODEL — these events are real, but the model that scored them "
+            "was trained on generated data. Surprisal here ranks moments against a "
+            "made-up notion of ordinary rugby. Retrain on your own matches "
+            "(`ruck train`) before reading anything into the numbers."
+        )
+        background = WARN_BG
+        style = styles["banner"]
     else:
         text = f"Source: {context.source_label}"
         background = colors.HexColor("#f2f5fa")
@@ -263,7 +280,7 @@ def render_report(
     story.append(PageBreak())
     story += _clips_page(highlights, styles)
     story.append(PageBreak())
-    story += _shape_page(match_shape, reference_shape, styles)
+    story += _shape_page(match_shape, reference_shape, styles, context.reference_note)
     story.append(PageBreak())
     story += _method_page(context, styles)
     if context.real_check:
@@ -492,6 +509,7 @@ def _shape_page(
     match_shape: ShapeSummary,
     reference_shape: ShapeSummary | None,
     styles: dict[str, ParagraphStyle],
+    context_note: str | None = None,
 ) -> list[object]:
     story: list[object] = [
         Paragraph("Attack shape", styles["h2"]),
@@ -560,6 +578,10 @@ def _shape_page(
                 ]
             )
         )
+    if reference_shape is None and context_note:
+        story.append(Spacer(1, 6))
+        story.append(Paragraph("Against the competition", styles["h3"]))
+        story.append(Paragraph(context_note, styles["body"]))
     if match_shape.width_share is None:
         story.append(Spacer(1, 6))
         story.append(
@@ -628,19 +650,35 @@ def _caveats(context: ReportContext) -> list[str]:
             "The events in this report were generated, not measured. Nothing here is a "
             "statement about any real match, team or player.",
         )
+    elif context.model_is_synthetic:
+        caveats.insert(
+            0,
+            "The events are real but the model is not: it was trained on generated "
+            "matches, so its idea of an ordinary phase comes from a simulator. The "
+            "ranking of moments within this match is still usable; the absolute bit "
+            "values are not comparable to anything.",
+        )
     if context.model_card.get("ppl_bigram") and context.model_card.get("ppl_transformer"):
         try:
-            if float(context.model_card["ppl_transformer"]) > float(
-                context.model_card["ppl_bigram"]
-            ):
-                caveats.insert(
-                    0,
-                    "On this corpus the transformer does not beat a bigram baseline. Its "
-                    "surprisal is still usable for ranking moments within a match, but "
-                    "the model is not learning long-range structure a count model misses.",
-                )
+            transformer = float(context.model_card["ppl_transformer"])
+            bigram = float(context.model_card["ppl_bigram"])
         except (TypeError, ValueError):
-            pass
+            return caveats
+        if transformer > bigram:
+            caveats.insert(
+                0,
+                "On this corpus the transformer does not beat a bigram baseline. Its "
+                "surprisal is still usable for ranking moments within a match, but "
+                "the model is not learning long-range structure a count model misses.",
+            )
+        elif transformer > 0 and bigram / transformer < 1.1:
+            caveats.insert(
+                0,
+                f"The transformer's edge over a bigram baseline is {bigram / transformer:.2f}x. "
+                "Nearly all the predictable structure is in the previous event alone, so "
+                "treat these bits as a ranking of moments rather than as evidence that "
+                "the model understands a possession.",
+            )
     return caveats
 
 

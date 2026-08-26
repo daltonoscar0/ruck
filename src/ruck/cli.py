@@ -195,7 +195,11 @@ def _audit(args: argparse.Namespace) -> int:
 
     if args.fail_on:
         threshold = Severity(args.fail_on).rank
-        if any(f.severity.rank <= threshold for f in result.findings):
+        # Only findings the report actually printed count. Exiting 1 over a
+        # finding that was withheld for having no citation would fail a build
+        # against a report that says "No findings."
+        printed = [f for f in result.findings if f.file and f.line]
+        if any(f.severity.rank <= threshold for f in printed):
             return EXIT_FINDINGS
     return EXIT_OK
 

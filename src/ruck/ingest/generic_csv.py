@@ -175,8 +175,9 @@ def load_csv(
         report.dropped = bad
         if bad:
             report.notes.append(
-                f"{len(bad)} row(s) failed validation and were dropped; "
-                f"first: row {bad[0][0]} - {bad[0][1]}"
+                f"{len(bad)} row(s) failed validation and were dropped; first, at "
+                f"position {bad[0][0]} after sorting by time (not the CSV line "
+                f"number): {bad[0][1]}"
             )
 
     events = derive_possessions(events)
@@ -213,9 +214,20 @@ def _apply_coordinates(df: pd.DataFrame, mode: str, report: LoadReport) -> pd.Da
             if any(c.endswith("y") for c in have)
             else pd.Series(dtype=float)
         )
-        y_max = float(y_values.max()) if len(y_values.dropna()) else 0.0
-        mode = "percent" if y_max > PITCH_WIDTH else "metres"
-        report.notes.append(f"coordinates read as {mode} (max y = {y_max:.1f})")
+        clean = y_values.dropna()
+        # A high quantile rather than the maximum: one mistyped coordinate
+        # should not silently rescale a whole match from metres into percent.
+        y_high = float(clean.quantile(0.99)) if len(clean) else 0.0
+        y_max = float(clean.max()) if len(clean) else 0.0
+        mode = "percent" if y_high > PITCH_WIDTH else "metres"
+        report.notes.append(
+            f"coordinates read as {mode} (99th percentile y = {y_high:.1f}, max = {y_max:.1f})"
+        )
+        if mode == "metres" and y_max > PITCH_WIDTH:
+            report.notes.append(
+                f"{int((clean > PITCH_WIDTH).sum())} row(s) have y beyond the touchline "
+                "and will be dropped by validation"
+            )
 
     if mode == "percent":
         for c in have:
@@ -237,9 +249,14 @@ def _apply_direction(
         return df
 
     home = fold(home_team)
-    period = df["period"] if "period" in df.columns else _infer_period(df["t"])
+    # A blank period must be inferred from the clock. Treating it as the first
+    # half mirrors second-half events to the wrong end of the pitch.
+    if "period" in df.columns:
+        period = pd.to_numeric(df["period"], errors="coerce").fillna(_infer_period(df["t"]))
+    else:
+        period = _infer_period(df["t"])
     is_home = df["team"].map(lambda v: fold(v) == home)
-    first_half = period.fillna(1).astype(int) % 2 == 1
+    first_half = period.astype(int) % 2 == 1
     # A team attacks left-to-right when it is at home in an odd period, or away
     # in an even period; otherwise its coordinates are mirrored.
     keep = (is_home & first_half) | (~is_home & ~first_half)

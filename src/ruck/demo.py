@@ -62,8 +62,8 @@ def run_demo(*, out_dir: str | Path = "runs/demo", device: str = "auto") -> dict
             "to build the bundled model and corpus."
         )
 
-    match_path = _write_demo_match(corpus_path, out_dir / "demo_match.csv")
     model = load_model(root / "model")
+    match_path = _write_demo_match(corpus_path, out_dir / "demo_match.csv", model)
     real_check = _real_match_appendix(root)
 
     print("analyzing the bundled synthetic match ...")
@@ -107,11 +107,28 @@ def run_demo(*, out_dir: str | Path = "runs/demo", device: str = "auto") -> dict
     }
 
 
-def _write_demo_match(corpus_path: Path, out_path: Path) -> Path:
-    """Pull one match out of the bundled corpus and write it as a standalone CSV."""
+def _write_demo_match(corpus_path: Path, out_path: Path, model) -> Path:
+    """Pull one HELD-OUT match out of the bundled corpus and write it out.
+
+    The match ids in the test split are recorded in `metrics.json` at training
+    time. Taking the first match in the corpus instead would score a match the
+    model was trained on, and every surprisal number in the demo report would
+    be an in-sample prediction on memorised data — precisely the mistake this
+    project's other half exists to find.
+    """
     corpus = pd.read_csv(corpus_path)
-    match_id = sorted(corpus["match_id"].unique())[0]
-    match = corpus[corpus["match_id"] == match_id]
+    available = sorted(corpus["match_id"].astype(str).unique())
+
+    data = model.metrics.get("data") if isinstance(model.metrics, dict) else None
+    held_out = [str(m) for m in (data or {}).get("test_match_ids", []) if str(m) in set(available)]
+    if not held_out:
+        raise ValueError(
+            f"{corpus_path.name} has no held-out match recorded in metrics.json. "
+            "Re-run scripts/train_demo_model.py so the demo cannot score a match "
+            "the model was trained on."
+        )
+
+    match = corpus[corpus["match_id"].astype(str) == held_out[0]]
     out_path.parent.mkdir(parents=True, exist_ok=True)
     match.to_csv(out_path, index=False)
     return out_path

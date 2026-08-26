@@ -34,6 +34,10 @@ ZONE_PHRASE: dict[str, str] = {
 }
 CHANNEL_PHRASE: dict[str, str] = {"L": "left channel", "M": "midfield", "R": "right channel"}
 
+#: Events the *opposition* performs. The `team` column names the side in
+#: possession, so these are described from the ball carrier's point of view.
+DEFENSIVE_ACTIONS: frozenset[str] = frozenset({"tackle"})
+
 ACTION_PHRASE: dict[str, str] = {
     "carry": "carry",
     "pass": "pass",
@@ -215,6 +219,10 @@ def describe(row: pd.Series) -> str:
     else:
         when = f" on phase {int(phase)}"
 
+    if token.action in DEFENSIVE_ACTIONS and team:
+        # `team` is the side in possession. A tackle is made by the other side,
+        # so writing "Munster tackle" credits it to exactly the wrong team.
+        return f"{team} carrier {action}d {where}{when} — {outcome}".strip()
     return f"{team} {action} {where}{when} — {outcome}".strip()
 
 
@@ -229,9 +237,11 @@ def top_sequences(
     """The ``n`` most unexpected passages of play, as clip-ready highlights.
 
     A passage is a run of ``window`` consecutive events inside one possession.
-    Windows are ranked by total surprisal and then thinned so that two
-    highlights are never within ``min_gap`` seconds of each other, which stops
-    the list from being ten cuts of the same try.
+    Windows are ranked by total surprisal and then thinned: a window is dropped
+    if its peak event has already been used, or if it starts within ``min_gap``
+    seconds of a clip already taken. Thinning on the window start alone is not
+    enough — two windows can start a minute apart and still be cut around the
+    same event, which puts the same play in the list twice.
     """
     usable = scored[scored["surprisal_bits"].notna()].sort_values("t", kind="stable")
     if usable.empty:
@@ -257,12 +267,15 @@ def top_sequences(
 
     highlights: list[Highlight] = []
     taken: list[float] = []
+    used_peaks: set[int] = set()
     for total, start_t, peak_offset, chunk in candidates:
         if len(highlights) >= n:
             break
+        peak = chunk.iloc[peak_offset]
+        if int(peak.name) in used_peaks:
+            continue
         if any(abs(start_t - other) < min_gap for other in taken):
             continue
-        peak = chunk.iloc[peak_offset]
         highlights.append(
             Highlight(
                 rank=len(highlights) + 1,
@@ -279,6 +292,7 @@ def top_sequences(
             )
         )
         taken.append(start_t)
+        used_peaks.add(int(peak.name))
     return highlights
 
 

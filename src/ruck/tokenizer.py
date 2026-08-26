@@ -118,7 +118,10 @@ class Token:
 def token_of(row: pd.Series | dict) -> Token:
     """Build the token for one canonical event row."""
     get = row.get
-    action = str(get("type") or "other")
+    raw_action = get("type")
+    # A canonical frame uses pandas' nullable string dtype, so a missing action
+    # is pd.NA — which is neither None nor falsy, and str() of it is "<NA>".
+    action = "other" if raw_action is None or pd.isna(raw_action) else str(raw_action)
     if action not in ACTIONS:
         action = "other"
     outcome = get("outcome")

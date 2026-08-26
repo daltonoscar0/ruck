@@ -113,8 +113,13 @@ POINTS: dict[str, int] = {
 }
 
 #: Actions that end a possession when they occur.
+#:
+#: Scoring actions are deliberately absent. A try is followed by a conversion
+#: from the same side, and the restart after it opens the next possession on
+#: its own — ending the possession at the try would leave the conversion as a
+#: one-event possession and drag every per-possession average down.
 POSSESSION_ENDING: frozenset[str] = frozenset(
-    {"turnover", "knock_on", "forward_pass", "try", "penalty_goal", "drop_goal", "end_period"}
+    {"turnover", "knock_on", "forward_pass", "end_period"}
 )
 
 _DTYPES: dict[str, str] = {
@@ -306,30 +311,46 @@ def derive_possessions(df: pd.DataFrame) -> pd.DataFrame:
     pid = 0
     phase = 0
     prev_team: str | None = None
+    prev_period: object = None
     started = False
+    # True when the previous event closed a possession, so whatever comes next
+    # opens a new one at phase 0 whatever kind of event it is. Without this a
+    # ruck straight after a turnover is numbered phase 1, and every phase in
+    # that possession is off by one.
+    fresh = True
     for _, row in out.iterrows():
         action = row["type"]
         team = None if pd.isna(row["team"]) else str(row["team"])
+        period = None if pd.isna(row["period"]) else int(row["period"])
+        new_period = period is not None and prev_period is not None and period != prev_period
+
         starts_possession = action in {"lineout", "scrum", "restart"} or not started
-        if starts_possession:
+        if starts_possession or new_period:
             if started:
                 pid += 1
             phase = 0
             started = True
+        elif fresh:
+            phase = 0
         elif team is not None and prev_team is not None and team != prev_team:
             # Possession changed hands without a set piece: a turnover in play.
             pid += 1
             phase = 0
         elif action in {"ruck", "maul"}:
             phase += 1
+        fresh = False
+
         possession_ids.append(pid)
         phases.append(phase)
         if action in POSSESSION_ENDING:
             pid += 1
             phase = 0
             prev_team = None
+            fresh = True
         else:
             prev_team = team if team is not None else prev_team
+        if period is not None:
+            prev_period = period
 
     out["possession_id"] = out["possession_id"].fillna(pd.Series(possession_ids, index=out.index))
     out["phase"] = out["phase"].fillna(pd.Series(phases, index=out.index))

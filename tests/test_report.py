@@ -282,7 +282,7 @@ def test_shape_without_coordinates_reports_none_rather_than_zero(match: pd.DataF
 def test_competition_reference_excludes_the_match_under_review():
     corpus = generate_corpus(n_matches=5, seed=6)
     match_id = sorted(corpus["match_id"].unique())[0]
-    reference = competition_reference(corpus, exclude_match=match_id)
+    reference = competition_reference(corpus, exclude_matches={match_id})
     only_that_match = team_shape(corpus[corpus["match_id"] == match_id])
     assert reference.n_events == len(corpus) - only_that_match.n_events
     assert reference.team == "Competition average"
@@ -392,3 +392,52 @@ def test_highlight_is_serialisable_to_a_row():
     assert row["clock"] == "01:30"
     assert row["clip_start_clock"] == "01:22"
     assert row["team"] == "Munster"
+
+
+def test_a_tackle_is_not_credited_to_the_team_carrying_the_ball():
+    """`team` names the side in possession; the tackle is made by the other side."""
+    row = coerce(
+        pd.DataFrame(
+            [
+                {
+                    "match_id": "m",
+                    "t": 0.0,
+                    "team": "Munster",
+                    "type": "tackle",
+                    "x": 60.0,
+                    "y": 35.0,
+                    "phase": 2,
+                    "outcome": "complete",
+                }
+            ]
+        )
+    ).iloc[0]
+    text = describe(row)
+    assert "Munster tackle" not in text
+    assert "carrier tackled" in text
+
+
+def test_a_carry_is_still_credited_to_the_team_in_possession():
+    row = coerce(
+        pd.DataFrame(
+            [
+                {
+                    "match_id": "m",
+                    "t": 0.0,
+                    "team": "Munster",
+                    "type": "carry",
+                    "x": 60.0,
+                    "y": 35.0,
+                    "phase": 2,
+                    "outcome": "retained",
+                }
+            ]
+        )
+    ).iloc[0]
+    assert describe(row).startswith("Munster carry")
+
+
+def test_the_same_play_is_never_listed_as_two_clips(scored: pd.DataFrame):
+    highlights = top_sequences(scored, n=10)
+    peaks = [h.event_index for h in highlights]
+    assert len(peaks) == len(set(peaks))
