@@ -30,16 +30,16 @@ for `action`, `start_x`/`pitch_x` for `x`, `result`/`success` for `outcome`,
 
 Two conventions are supported, chosen with `coordinates=`:
 
-- `metres` — `x` in 0-100, `y` in 0-70.
-- `percent` — both in 0-100; `y` is rescaled to metres on load.
-- `auto` (default) — `percent` if any `y` exceeds 70, else `metres`.
+- `metres`, `x` in 0-100, `y` in 0-70.
+- `percent`, both in 0-100; `y` is rescaled to metres on load.
+- `auto` (default), `percent` if any `y` exceeds 70, else `metres`.
 
 And two orientations, chosen with `direction=`:
 
-- `possession` (default) — coordinates are already normalized so the team in
+- `possession` (default), coordinates are already normalized so the team in
   possession attacks left-to-right. This is the suite convention: `x = 95`
   always means "five metres out", whichever end the team is playing into.
-- `absolute` — `x` is measured in a fixed camera frame. Pass `home_team=` as
+- `absolute`, `x` is measured in a fixed camera frame. Pass `home_team=` as
   well; away-team events and second-half events are mirrored on load.
 
 If your export has no coordinates at all it still works. The tokenizer emits an

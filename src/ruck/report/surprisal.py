@@ -26,7 +26,7 @@ CLIP_LEAD_IN = 8.0
 
 #: Events nobody cuts video of. A substitution is not a passage of play, and a
 #: feed made mostly of substitutions will otherwise fill the whole clip list
-#: with them — they are unusual to a model precisely because they are not rugby.
+#: with them, they are unusual to a model precisely because they are not rugby.
 NOT_CLIPPABLE: frozenset[str] = frozenset({"substitution", "end_period"})
 
 ZONE_PHRASE: dict[str, str] = {

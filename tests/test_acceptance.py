@@ -298,7 +298,7 @@ def test_a_real_match_is_never_benchmarked_against_generated_events(tmp_path):
     assert "generated" in result.context.reference_note
 
     raw = (tmp_path / "real.pdf").read_bytes()
-    # The events are real, so no synthetic-data banner — but the model is
+    # The events are real, so no synthetic-data banner, but the model is
     # generated and the report has to say so.
     assert b"SYNTHETIC MODEL" in raw
     assert b"Competition average" not in raw

@@ -441,7 +441,7 @@ def _as_ratio(node: ast.AST) -> tuple[ast.AST, ast.AST] | None:
     if not isinstance(node, ast.BinOp) or not isinstance(node.op, ast.Div):
         return None
     denominator = node.right
-    # `acute / (chronic / 4)` — the weekly-average form.
+    # `acute / (chronic / 4)`, the weekly-average form.
     if (
         isinstance(denominator, ast.BinOp)
         and isinstance(denominator.op, ast.Div)

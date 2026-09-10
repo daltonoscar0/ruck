@@ -116,7 +116,7 @@ POINTS: dict[str, int] = {
 #:
 #: Scoring actions are deliberately absent. A try is followed by a conversion
 #: from the same side, and the restart after it opens the next possession on
-#: its own — ending the possession at the try would leave the conversion as a
+#: its own, ending the possession at the try would leave the conversion as a
 #: one-event possession and drag every per-possession average down.
 POSSESSION_ENDING: frozenset[str] = frozenset(
     {"turnover", "knock_on", "forward_pass", "end_period"}

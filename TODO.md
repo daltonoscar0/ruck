@@ -24,8 +24,8 @@ manual step. Anything here is deliberate; nothing here is a silent gap.
 
 - **The demo LM corpus is synthetic.** Because of the above there is no real
   phase-play corpus to train on. `ruck demo` trains on a seeded generator
-  (`ruck.demo_data.generate`) and every artefact it touches — PDF cover banner,
-  competition name, README metrics table — says so. Replace it with your own
+  (`ruck.demo_data.generate`) and every artefact it touches, PDF cover banner,
+  competition name, README metrics table, says so. Replace it with your own
   exports (`ruck train`) and the same pipeline produces meaningful numbers.
 
   The generator is tuned to plausible per-match rates (about 265 carries, 260
@@ -49,8 +49,8 @@ manual step. Anything here is deliberate; nothing here is a silent gap.
 - The transformer is trained on possessions, so the first event of each
   possession is conditioned on `<bos>` alone. Its surprisal measures a
   corpus-wide prior over set pieces rather than anything about the match, so it
-  is left unscored. Giving the model cross-possession context — encoding a
-  match as one stream with possession boundaries as tokens — would recover
+  is left unscored. Giving the model cross-possession context, encoding a
+  match as one stream with possession boundaries as tokens, would recover
   those events and is the obvious next experiment.
 - `ruck compare` scores both matches with the same model but does not test
   whether the difference between two surprisal curves is larger than run-to-run

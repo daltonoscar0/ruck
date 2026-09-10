@@ -4,7 +4,7 @@
 
 ##  PROJECT OVERVIEW
 
-ProActAI is an Artificial Intelligence–based system designed to predict potential injury risks in volleyball players by analyzing human movement patterns using deep learning and time-series modeling.
+ProActAI is an Artificial Intelligence-based system designed to predict potential injury risks in volleyball players by analyzing human movement patterns using deep learning and time-series modeling.
 
 The system processes sports videos using pose estimation techniques to extract skeletal keypoints and transforms them into biomechanical features such as joint angles, posture alignment, torso bend, and movement velocity. These features are structured into temporal sequences and analyzed using Long Short-Term Memory (LSTM) networks.
 
@@ -47,11 +47,11 @@ The objective of this project is:
 
 By building ProActAI, the system enables:
 
-→ Early detection of unsafe actions  
-→ Quantitative injury risk estimation  
-→ Real-time feedback for safer training  
-→ Data-driven coaching decisions  
-→ Improved athlete safety and performance  
+-> Early detection of unsafe actions  
+-> Quantitative injury risk estimation  
+-> Real-time feedback for safer training  
+-> Data-driven coaching decisions  
+-> Improved athlete safety and performance  
 
 
 ---

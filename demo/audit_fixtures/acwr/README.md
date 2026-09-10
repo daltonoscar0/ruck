@@ -2,7 +2,7 @@
 
 # acwr
 
-**Acute:chronic workload ratio and training-load metrics — no dependencies, no spreadsheet.**
+**Acute:chronic workload ratio and training-load metrics, no dependencies, no spreadsheet.**
 
 <p>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+" /></a>
@@ -22,7 +22,7 @@
 The acute:chronic workload ratio compares how hard you have trained **recently**
 (the acute window, typically 7 days) against what your body is **used to** (the
 chronic window, typically 28 days). A ratio near 1.0 means today looks like your
-normal. Ramp up too fast and the ratio climbs — which is associated with a higher
+normal. Ramp up too fast and the ratio climbs, which is associated with a higher
 injury rate across a lot of team-sport literature.
 
 Everyone recomputes this in a spreadsheet and gets it subtly wrong. This is the
@@ -49,7 +49,7 @@ latest.acute      # 900.0
 latest.chronic    # 450.0
 ```
 
-Loads are unitless — session-RPE × minutes, TRIMP, WHOOP strain, distance,
+Loads are unitless, session-RPE × minutes, TRIMP, WHOOP strain, distance,
 anything monotonic in *how hard was that day*. **Rest days are `0.0` and they
 must be included**; dropping them silently inflates every window that follows.
 
@@ -82,7 +82,7 @@ you want the version most papers and most coaches will recognise.
 | `0.8 – 1.3` | `OPTIMAL` | The commonly cited "sweet spot" |
 | `1.3 – 1.5` | `CAUTION` | Ramping faster than you have adapted |
 | `> 1.5` | `HIGH_RISK` | Associated with elevated injury rates |
-| — | `UNDEFINED` | Not enough history, or no chronic load |
+|, | `UNDEFINED` | Not enough history, or no chronic load |
 
 ## Also Included
 
@@ -105,16 +105,16 @@ and the ratio hovers near 1.0 no matter what you do. This library returns
 both windows shrink, both means rise, and your chronic load looks far higher
 than it is.
 
-**Treating one hard session as a spike.** It usually isn't — a single big day
+**Treating one hard session as a spike.** It usually isn't, a single big day
 inside 28 days of history moves the ratio surprisingly little. There is a test
 asserting exactly this (`test_single_hard_session_barely_moves_the_ratio`).
 Sustained blocks move it; single sessions mostly don't.
 
 ## Caveats
 
-The 0.8–1.3 sweet spot is a **population-level heuristic from team-sport
+The 0.8-1.3 sweet spot is a **population-level heuristic from team-sport
 cohorts**, and it has had a genuinely rough time in the methodological
-literature — the discretisation into zones, the spurious-correlation critique,
+literature, the discretisation into zones, the spurious-correlation critique,
 and the small effect sizes are all live arguments. Treat it as one signal
 among several, not as a verdict, and definitely not as medical advice.
 
@@ -129,10 +129,10 @@ pytest
 
 ## References
 
-- Hulin et al. (2014), *Br J Sports Med* — the rolling-average formulation
-- Williams et al. (2017), *Br J Sports Med* — the EWMA formulation
-- Foster (1998), *Med Sci Sports Exerc* — monotony and strain
-- Impellizzeri et al. (2020), *Int J Sports Physiol Perform* — the critique worth reading
+- Hulin et al. (2014), *Br J Sports Med*, the rolling-average formulation
+- Williams et al. (2017), *Br J Sports Med*, the EWMA formulation
+- Foster (1998), *Med Sci Sports Exerc*, monotony and strain
+- Impellizzeri et al. (2020), *Int J Sports Physiol Perform*, the critique worth reading
 
 ## License
 

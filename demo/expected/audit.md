@@ -33,7 +33,7 @@ The rugby-specific section. An ACWR divides a recent window of load by a longer 
 
 | Check | Where | Severity | What |
 | --- | --- | --- | --- |
-| AC001 | `pipeline.py:48` | critical | Coupled acute:chronic ratio — the acute window is inside the chronic window |
+| AC001 | `pipeline.py:48` | critical | Coupled acute:chronic ratio, the acute window is inside the chronic window |
 | AC003 | `pipeline.py:53` | high | Exponentially weighted ACWR shares every observation between numerator and denominator |
 | AC004 | `pipeline.py:48` | medium | ACWR divides by chronic load with no floor on the denominator |
 | AC005 | `pipeline.py:56` | medium | ACWR binned into sweet-spot categories |
@@ -42,7 +42,7 @@ The single most useful thing to do with a coupled ratio is to recompute it uncou
 
 ## Findings
 
-### 1. LA002 — Centred rolling window averages across the current observation
+### 1. LA002, Centred rolling window averages across the current observation
 
 **critical** · Lookahead · confidence high · detected by ruck
 
@@ -60,7 +60,7 @@ panel["player_load"].rolling(14, center=True)
 
 Drop `center=True`; a trailing window is the causal one.
 
-### 2. LA001 — Negative shift pulls 1 future observation(s) backwards
+### 2. LA001, Negative shift pulls 1 future observation(s) backwards
 
 **critical** · Lookahead · confidence high · detected by ruck
 
@@ -72,13 +72,13 @@ panel["session_rpe"].shift(-1)
 
 **Why this matters**
 
-`shift(-1)` moves values from 1 row(s) in the future onto the current row. If the result is a feature, the model is reading sessions that have not happened. If it is a label, that is correct and intended — but then nothing built from the same shifted frame may be a feature.
+`shift(-1)` moves values from 1 row(s) in the future onto the current row. If the result is a feature, the model is reading sessions that have not happened. If it is a label, that is correct and intended, but then nothing built from the same shifted frame may be a feature.
 
 **Fix**
 
 Use a negative shift only to construct the label, in its own statement, and build features from positive shifts of the unshifted frame.
 
-### 3. AC001 — Coupled acute:chronic ratio — the acute window is inside the chronic window
+### 3. AC001, Coupled acute:chronic ratio, the acute window is inside the chronic window
 
 **critical** · Acute:chronic ratio · confidence high · detected by ruck
 
@@ -96,7 +96,7 @@ The acute window is the last 7 observations and the chronic window is the last 2
 
 Take the chronic window from the period before the acute one so the two share no sessions: `chronic = load.shift(7).rolling(21).sum()`, then divide by the number of weeks it spans. Report the uncoupled ratio next to the coupled one; if the effect only exists in the coupled version, it was the algebra.
 
-### 4. LB002 — Feature `risk_score` is computed from the outcome
+### 4. LB002, Feature `risk_score` is computed from the outcome
 
 **critical** · Label bleed · confidence medium · detected by ruck
 
@@ -114,7 +114,7 @@ features["risk_score"] = panel["injured"] * 0.9 + np.random.rand(len(panel)) * 0
 
 Compute the feature from workload and availability data recorded before the outcome window opens.
 
-### 5. SV001 — Population is filtered by the outcome being predicted
+### 5. SV001, Population is filtered by the outcome being predicted
 
 **critical** · Survivorship · confidence medium · detected by ruck
 
@@ -130,9 +130,9 @@ The rows kept are chosen by the injury column, so the sample is conditioned on t
 
 **Fix**
 
-Keep every athlete-week in the panel and let the label mark which ones ended in an injury. If athlete-weeks must be excluded — a player on loan, a mid-season signing — exclude them on a rule that does not mention the outcome, and record the count.
+Keep every athlete-week in the panel and let the label mark which ones ended in an injury. If athlete-weeks must be excluded, a player on loan, a mid-season signing, exclude them on a rule that does not mention the outcome, and record the count.
 
-### 6. LB001 — Feature set contains the outcome column (injured)
+### 6. LB001, Feature set contains the outcome column (injured)
 
 **critical** · Label bleed · confidence high · detected by ruck
 
@@ -150,7 +150,7 @@ X = features[["acute_load", "acwr", "injured"]]
 
 Build the feature list explicitly and assert the label is not in it, rather than dropping columns by name after the fact.
 
-### 7. CV001 — KFold(shuffle=True) on a time-ordered panel
+### 7. CV001, KFold(shuffle=True) on a time-ordered panel
 
 **critical** · Unpurged cross-validation · confidence high · detected by ruck
 
@@ -168,7 +168,7 @@ Shuffling breaks the time order, so a fold can train on next week and test on th
 
 Split forward in time (`TimeSeriesSplit`, or explicit date cut-offs), and purge a gap at least as long as the longest feature window so no test row shares data with a training row.
 
-### 8. LA003 — Backward fill copies later values onto earlier rows
+### 8. LA003, Backward fill copies later values onto earlier rows
 
 **high** · Lookahead · confidence high · detected by ruck
 
@@ -180,13 +180,13 @@ panel["total_distance"].bfill()
 
 **Why this matters**
 
-Backfilling a gap in a workload series fills it with the next recorded session. Missing GPS is not missing at random — it clusters around injuries, illness and rest — so the filled value is drawn from exactly the period the model is trying to predict.
+Backfilling a gap in a workload series fills it with the next recorded session. Missing GPS is not missing at random, it clusters around injuries, illness and rest, so the filled value is drawn from exactly the period the model is trying to predict.
 
 **Fix**
 
 Forward-fill (`ffill`) if carrying the last known value is defensible, or leave the gap and let the model see a missing indicator. Say in the write-up which one you chose.
 
-### 9. LA005 — `diff(-3)` differences against a future observation
+### 9. LA005, `diff(-3)` differences against a future observation
 
 **high** · Lookahead · confidence high · detected by ruck
 
@@ -204,7 +204,7 @@ A negative period differences the current row against a later one, so the result
 
 Use a positive period to difference against the past.
 
-### 10. AC006 — Acute window includes the day the outcome is recorded
+### 10. AC006, Acute window includes the day the outcome is recorded
 
 **high** · Label bleed · confidence medium · detected by ruck
 
@@ -216,13 +216,13 @@ features["acwr"] = acute / chronic
 
 **Why this matters**
 
-The acute window ends on the current row, so a session's own load is a feature for that session's outcome. When an injury occurs during a session, the truncated or elevated load of that session is in the window — the feature partly encodes the label. Models trained this way look predictive and cannot be used prospectively, because on the morning of a session that load does not exist yet.
+The acute window ends on the current row, so a session's own load is a feature for that session's outcome. When an injury occurs during a session, the truncated or elevated load of that session is in the window, the feature partly encodes the label. Models trained this way look predictive and cannot be used prospectively, because on the morning of a session that load does not exist yet.
 
 **Fix**
 
 Shift the whole feature block by one observation before the ratio: `load.shift(1).rolling(7).sum()`. Every feature should be computable the morning before the session it describes.
 
-### 11. AC003 — Exponentially weighted ACWR shares every observation between numerator and denominator
+### 11. AC003, Exponentially weighted ACWR shares every observation between numerator and denominator
 
 **high** · Acute:chronic ratio · confidence high · detected by ruck
 
@@ -240,7 +240,7 @@ Both the acute and the chronic term are exponentially weighted means of the same
 
 Compute the chronic term from load up to the start of the acute period: `chronic = load.shift(acute_span).ewm(span=chronic_span).mean()`. Better, drop the ratio and give the model acute and chronic load as two features, letting it find its own combination.
 
-### 12. LB003 — Rolling window is computed over the outcome column
+### 12. LB003, Rolling window is computed over the outcome column
 
 **high** · Label bleed · confidence high · detected by ruck
 
@@ -258,7 +258,7 @@ The window covers 'injured' alongside the workload columns, so the aggregate car
 
 Select only workload columns before the window, by explicit list.
 
-### 13. LB005 — `days_since_injury` is defined by the outcome it is used to predict
+### 13. LB005, `days_since_injury` is defined by the outcome it is used to predict
 
 **high** · Label bleed · confidence medium · detected by ruck
 
@@ -270,13 +270,13 @@ features["days_since_injury"] = (panel["date"] - panel["injury_date"]).dt.days
 
 **Why this matters**
 
-Injury-history features are legitimate only when they are strictly backward-looking from the prediction point. Computed over the whole record — which is the default when the column is built once from the full frame — they encode injuries that have not happened yet. `days_since_injury` computed this way is negative before an injury and the model reads the sign.
+Injury-history features are legitimate only when they are strictly backward-looking from the prediction point. Computed over the whole record, which is the default when the column is built once from the full frame, they encode injuries that have not happened yet. `days_since_injury` computed this way is negative before an injury and the model reads the sign.
 
 **Fix**
 
 Recompute the feature as of each prediction date, using only injuries recorded strictly before it, and unit-test the boundary.
 
-### 14. LB004 — Feature window is inclusive of the injury date
+### 14. LB004, Feature window is inclusive of the injury date
 
 **high** · Label bleed · confidence medium · detected by ruck
 
@@ -294,7 +294,7 @@ panel["date"] <= injury_date
 
 Use `<` against the injury date, or better, end the window a full day before it so a mid-session injury cannot bleed in at all.
 
-### 15. SV003 — Cohort selected on a season total (`games_played`)
+### 15. SV003, Cohort selected on a season total (`games_played`)
 
 **high** · Survivorship · confidence medium · detected by ruck
 
@@ -312,7 +312,7 @@ fit_players["games_played"] > 12
 
 Select the cohort on information available at the start of the window (contracted, in the squad, has n weeks of prior data) rather than on totals accumulated across it.
 
-### 16. LA006 — StandardScaler fitted on the full dataset before the split
+### 16. LA006, StandardScaler fitted on the full dataset before the split
 
 **high** · Preprocessing leakage · confidence medium · detected by ruck
 
@@ -324,13 +324,13 @@ scaler.fit_transform(X)
 
 **Why this matters**
 
-`scaler.fit_transform` is fitted on `X`, which is the same data handed to the splitter at line 89. The transformer's statistics — means, quantiles, imputation values, selected features — are therefore computed over rows that end up in the test set, so the test set is no longer held out. On a workload panel this is usually worth a few points of AUC that do not survive deployment.
+`scaler.fit_transform` is fitted on `X`, which is the same data handed to the splitter at line 89. The transformer's statistics, means, quantiles, imputation values, selected features, are therefore computed over rows that end up in the test set, so the test set is no longer held out. On a workload panel this is usually worth a few points of AUC that do not survive deployment.
 
 **Fix**
 
 Split first, then fit on the training rows only, or wrap the transformer and the estimator in a `Pipeline` and fit the pipeline inside the cross-validation loop.
 
-### 17. CV002 — train_test_split shuffles by default
+### 17. CV002, train_test_split shuffles by default
 
 **high** · Unpurged cross-validation · confidence medium · detected by ruck
 
@@ -348,7 +348,7 @@ train_test_split(X_scaled, y, test_size=0.2)
 
 Pass `shuffle=False` and split on a date, or use a grouped, time-ordered splitter.
 
-### 18. CV003 — cross_val_score uses the default K-fold split
+### 18. CV003, cross_val_score uses the default K-fold split
 
 **high** · Unpurged cross-validation · confidence medium · detected by ruck
 
@@ -366,7 +366,7 @@ With `cv` unset or an integer, scikit-learn builds a plain (stratified) K-fold. 
 
 Pass an explicit splitter that is both time-ordered and grouped by athlete, and pass `groups=` so it is honoured.
 
-### 19. CV005 — TimeSeriesSplit with no gap, but features use rolling windows
+### 19. CV005, TimeSeriesSplit with no gap, but features use rolling windows
 
 **high** · Unpurged cross-validation · confidence high · detected by ruck
 
@@ -382,9 +382,9 @@ The split respects time order but leaves no embargo. The first test row sits one
 
 **Fix**
 
-Set `gap` to at least the longest feature window — 28 for a four-week chronic load, more if any feature looks further back.
+Set `gap` to at least the longest feature window, 28 for a four-week chronic load, more if any feature looks further back.
 
-### 20. SV002 — Unrestricted dropna() removes athlete-weeks non-randomly
+### 20. SV002, Unrestricted dropna() removes athlete-weeks non-randomly
 
 **medium** · Survivorship · confidence medium · detected by ruck
 
@@ -396,13 +396,13 @@ panel.dropna()
 
 **Why this matters**
 
-Missing GPS is not missing at random. It is concentrated in the weeks around injury, illness and rehab — the weeks the model most needs. Dropping every row with any null quietly removes them, and also removes the first 27 days of every athlete's record, where the 28-day chronic window has not filled.
+Missing GPS is not missing at random. It is concentrated in the weeks around injury, illness and rehab, the weeks the model most needs. Dropping every row with any null quietly removes them, and also removes the first 27 days of every athlete's record, where the 28-day chronic window has not filled.
 
 **Fix**
 
 Drop on an explicit subset, count what was dropped and report it, and check whether the dropped rows are disproportionately close to injuries.
 
-### 21. LA004 — Interpolation fills gaps from both sides
+### 21. LA004, Interpolation fills gaps from both sides
 
 **medium** · Lookahead · confidence medium · detected by ruck
 
@@ -420,7 +420,7 @@ pandas interpolates between the values on either side of a gap, so a filled Wedn
 
 Pass `limit_direction='forward'`, or leave the gap and flag it.
 
-### 22. LA007 — Rolling feature window ends on the observation it is a feature for
+### 22. LA007, Rolling feature window ends on the observation it is a feature for
 
 **medium** · Lookahead · confidence medium · detected by ruck
 
@@ -438,7 +438,7 @@ features["acute_load"] = panel["total_distance"].rolling(7).sum()
 
 Shift before the window: `.shift(1).rolling(7)`. If the outcome is genuinely next-day, say so explicitly and keep the shift anyway, so the feature is computable in the morning.
 
-### 23. AC004 — ACWR divides by chronic load with no floor on the denominator
+### 23. AC004, ACWR divides by chronic load with no floor on the denominator
 
 **medium** · Acute:chronic ratio · confidence medium · detected by ruck
 
@@ -456,7 +456,7 @@ Chronic load is near zero for a returning player, pre-season, or the first four 
 
 Require a minimum chronic period before emitting a ratio (`rolling(28, min_periods=28)`), and drop rather than clip the rows that do not have one. Clipping keeps a fabricated value in the sample.
 
-### 24. LA007 — Rolling feature window ends on the observation it is a feature for
+### 24. LA007, Rolling feature window ends on the observation it is a feature for
 
 **medium** · Lookahead · confidence medium · detected by ruck
 
@@ -474,7 +474,7 @@ ewma_acute = panel["total_distance"].ewm(span=7).mean()
 
 Shift before the window: `.shift(1).rolling(7)`. If the outcome is genuinely next-day, say so explicitly and keep the shift anyway, so the feature is computable in the morning.
 
-### 25. LA007 — Rolling feature window ends on the observation it is a feature for
+### 25. LA007, Rolling feature window ends on the observation it is a feature for
 
 **medium** · Lookahead · confidence medium · detected by ruck
 
@@ -492,7 +492,7 @@ ewma_chronic = panel["total_distance"].ewm(span=28).mean()
 
 Shift before the window: `.shift(1).rolling(28)`. If the outcome is genuinely next-day, say so explicitly and keep the shift anyway, so the feature is computable in the morning.
 
-### 26. AC005 — ACWR binned into sweet-spot categories
+### 26. AC005, ACWR binned into sweet-spot categories
 
 **medium** · Acute:chronic ratio · confidence medium · detected by ruck
 
@@ -510,7 +510,7 @@ Cutting the ratio at 0.8 / 1.3 / 1.5 turns a mechanically coupled quantity into 
 
 Keep the ratio continuous, report the uncoupled version alongside it, and let any thresholds be fitted on this squad rather than imported.
 
-### 27. LA007 — Rolling feature window ends on the observation it is a feature for
+### 27. LA007, Rolling feature window ends on the observation it is a feature for
 
 **medium** · Lookahead · confidence medium · detected by ruck
 
@@ -528,7 +528,7 @@ features["recent_history"] = panel[["total_distance", "injured"]].rolling(28).me
 
 Shift before the window: `.shift(1).rolling(28)`. If the outcome is genuinely next-day, say so explicitly and keep the shift anyway, so the feature is computable in the morning.
 
-### 28. CV004 — Athlete-level panel split without grouping by athlete
+### 28. CV004, Athlete-level panel split without grouping by athlete
 
 **medium** · Unpurged cross-validation · confidence low · detected by ruck
 
@@ -546,7 +546,7 @@ The file works with athlete identifiers (player_id) but no splitter is grouped b
 
 Use `StratifiedGroupKFold` or `GroupKFold` with `groups=df['player_id']`, or hold out whole athletes as well as later dates.
 
-## Purge list — GPS workload data
+## Purge list, GPS workload data
 
 Written for a squad's GPS and session-load export: one row per athlete per session or per day, columns for distance, high-speed running, player load, accelerations and session RPE, and an availability or injury record alongside it. Work down the list; each item is a thing to remove or change before refitting.
 
@@ -586,7 +586,7 @@ Keep out of `X`: the outcome itself, anything derived from it (`days_since_injur
 
 ### 5. Purge the fold boundary
 
-Split forward in time with an embargo of at least 28 days — the longest feature window in this repository — so no test row shares data with a training row, and group by athlete so the same player is not on both sides:
+Split forward in time with an embargo of at least 28 days, the longest feature window in this repository, so no test row shares data with a training row, and group by athlete so the same player is not on both sides:
 
 ```python
 splitter = TimeSeriesSplit(n_splits=5, gap=28)

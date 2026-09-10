@@ -17,7 +17,7 @@ L_ELBOW, R_ELBOW = 13, 14
 L_WRIST, R_WRIST = 15, 16
 
 NOSE = 0
-MID_SPINE = 24  # shoulder → hip mid approx
+MID_SPINE = 24  # shoulder -> hip mid approx
 
 # ============ Utility functions ============
 

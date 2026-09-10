@@ -17,3 +17,11 @@ runs/
 # Generated reports, except the checked-in reference outputs.
 *.pdf
 !demo/expected/*.pdf
+CLAUDE.md
+AGENTS.md
+.claude/
+.agentnotes/
+.cursor/
+.mcp.json
+tasks/lessons.md
+tasks/todo.md

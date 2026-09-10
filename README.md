@@ -43,14 +43,14 @@ stating before the metrics.
 
 | Source | What it actually provides | Phase play? |
 | --- | --- | --- |
-| Analyst CSV export | `t, team, action, x, y, phase, outcome` | **Yes** — this is the real path |
+| Analyst CSV export | `t, team, action, x, y, phase, outcome` | **Yes**, this is the real path |
 | ESPN rugby play feed | ~50 scoring, card and substitution events per match with a match clock; no coordinates, no phase counts | Timeline only |
 | RugbyPy | team and player summary aggregates (59 and 54 columns of match totals) | No |
 
 There is no open dataset with phase-level rugby events and pitch coordinates.
-All three loaders here are real and tested against real payloads — the ESPN one
+All three loaders here are real and tested against real payloads, the ESPN one
 against a cached Italy v England, Six Nations 2024, which is bundled and shows
-up as an appendix in the demo PDF — but a phase-play corpus has to come from
+up as an appendix in the demo PDF, but a phase-play corpus has to come from
 somewhere else.
 
 So the model that ships with `ruck demo` is trained on a **seeded synthetic
@@ -79,7 +79,7 @@ Measured on a **synthetic** corpus (see [Data](#data)): 80 generated matches, sp
 
 Over 9,584 test tokens, vocabulary 1986. The count baselines choose their smoothing constant on the same validation split the transformer early-stops against (bigram k = 0.0003); a fixed k would hand the transformer a win it has not earned.
 
-**The transformer beats the bigram by only 1.05x.** Almost all the predictable structure in this corpus is in the previous event alone, which is what you would expect from a generator whose next step depends mostly on the last one — a real corpus may or may not behave the same way. On this evidence the transformer is not earning its million parameters, and the honest reading is that the bigram is the model to beat.
+**The transformer beats the bigram by only 1.05x.** Almost all the predictable structure in this corpus is in the previous event alone, which is what you would expect from a generator whose next step depends mostly on the last one, a real corpus may or may not behave the same way. On this evidence the transformer is not earning its million parameters, and the honest reading is that the bigram is the model to beat.
 
 ### Downstream: points within 3 phases
 
@@ -89,9 +89,9 @@ Over 9,584 test tokens, vocabulary 1986. The count baselines choose their smooth
 | LM probe (frozen transformer) | 0.846 | 0.375 | 0.0739 |
 | Base rate | 0.500 | 0.102 | 0.0914 |
 
-8,455 in-play events, base rate 0.102. Both predictors are fitted on the same match-disjoint split, and both are strictly causal: the probe reads the frozen model's hidden state at that event, which is computed from that event and everything before it and nothing after. Events that *are* a score are excluded from the evaluated rows — predicting "will they score?" at the moment the points go up is not a prediction, and leaving those rows in inflated the reported average precision.
+8,455 in-play events, base rate 0.102. Both predictors are fitted on the same match-disjoint split, and both are strictly causal: the probe reads the frozen model's hidden state at that event, which is computed from that event and everything before it and nothing after. Events that *are* a score are excluded from the evaluated rows, predicting "will they score?" at the moment the points go up is not a prediction, and leaving those rows in inflated the reported average precision.
 
-**The GBM on hand features wins.** A hand-built feature set — field position, phase count, what has happened in the possession so far — carries more of this signal than a linear read-out of the language model's state. The LM probe is behind it, and saying so is the point of running the comparison.
+**The GBM on hand features wins.** A hand-built feature set, field position, phase count, what has happened in the possession so far, carries more of this signal than a linear read-out of the language model's state. The LM probe is behind it, and saying so is the point of running the comparison.
 
 Trained in 726s, best validation perplexity 3.75 at epoch 33 of 38.
 
@@ -99,7 +99,7 @@ Trained in 726s, best validation perplexity 3.75 at epoch 33 of 38.
 
 ## How `analyze` works
 
-**Tokenizer.** Each event becomes `action|zone|phase|outcome` — one of 25
+**Tokenizer.** Each event becomes `action|zone|phase|outcome`, one of 25
 actions, an 18-cell pitch zone (six bands from own 22 to the opposition
 five-metre line, three channels split on the 15-metre lines), a phase-count
 bucket, and an outcome. The full cross-product is about 40,000 combinations, far
@@ -116,7 +116,7 @@ carry|*|*|*                  action only
 Pure table lookup on a normalized string: no fuzzy matching, no learned merges,
 and the same event always produces the same id.
 
-**Model.** A small causal transformer over possessions — 4 layers, 128
+**Model.** A small causal transformer over possessions, 4 layers, 128
 dimensions, about 1.1M parameters against the spec's 10M ceiling, because a
 season of tagged matches is tens of thousands of events and more capacity would
 just memorise them. Splits are by match, never by possession.
@@ -125,7 +125,7 @@ just memorise them. Splits are by match, never by possession.
 plots the mean per phase; the clip list takes the highest-scoring three-event
 windows, thins them so ten clips are not ten cuts of the same try, and puts the
 cut point eight seconds before each passage starts. Descriptions are generated
-from the token's own fields through a fixed phrase table — the model produces a
+from the token's own fields through a fixed phrase table, the model produces a
 number, never prose.
 
 Surprisal is not quality. An unexpected event may be brilliant or a mistake; the
@@ -143,15 +143,15 @@ probes both and falls back to the native checks.
 
 | Check | What it looks for |
 | --- | --- |
-| `AC001` `AC002` | Coupled acute:chronic ratio — the acute window inside the chronic one, in pandas or in list slices |
+| `AC001` `AC002` | Coupled acute:chronic ratio, the acute window inside the chronic one, in pandas or in list slices |
 | `AC003` | EWMA ACWR, where every session is in both terms |
 | `AC004` | A ratio with no floor on the denominator |
 | `AC005` | Sweet-spot binning at 0.8 / 1.3 / 1.5 |
 | `AC006` | An acute window that includes the day the outcome is recorded |
-| `LA001`–`LA007` | Negative shifts, centred windows, backfill, interpolation, negative diffs, transformers fitted before the split, windows ending on the row they describe |
-| `LB001`–`LB005` | The outcome in the feature matrix, features derived from it, windows over it, inclusive injury-date filters, outcome-defined features |
-| `SV001`–`SV003` | Population filtered by the outcome, unrestricted `dropna`, cohorts chosen on season totals |
-| `CV001`–`CV005` | Shuffled splits, default K-fold, no athlete grouping, `TimeSeriesSplit` with no embargo |
+| `LA001`-`LA007` | Negative shifts, centred windows, backfill, interpolation, negative diffs, transformers fitted before the split, windows ending on the row they describe |
+| `LB001`-`LB005` | The outcome in the feature matrix, features derived from it, windows over it, inclusive injury-date filters, outcome-defined features |
+| `SV001`-`SV003` | Population filtered by the outcome, unrestricted `dropna`, cohorts chosen on season totals |
+| `CV001`-`CV005` | Shuffled splits, default K-fold, no athlete grouping, `TimeSeriesSplit` with no embargo |
 
 ### The ACWR section
 
@@ -171,9 +171,9 @@ on it inherits the relationship from the algebra rather than from the athletes.
 The report always prints this section, findings or none, because "we looked and
 the ratio is uncoupled" is an answer a performance department needs in writing.
 
-`demo/audit_fixtures/` holds snapshots of two public MIT-licensed repositories —
+`demo/audit_fixtures/` holds snapshots of two public MIT-licensed repositories -
 [`AbdullahKaddoura/acwr`](https://github.com/AbdullahKaddoura/acwr) and
-[`mdana5/injury-prediction`](https://github.com/mdana5/injury-prediction) — so
+[`mdana5/injury-prediction`](https://github.com/mdana5/injury-prediction), so
 `ruck audit demo/audit_fixtures` runs on real third-party code offline. The
 findings describe patterns in a code snapshot, not the competence of its
 authors; the same patterns are in most published workload-modelling code, which
@@ -209,8 +209,8 @@ exits 1 when `--fail-on` is given and a finding meets it, so it drops into CI.
 
 Fetching is rate-limited to one request per second per host with exponential
 backoff, and everything is cached under `data/raw/`. ESPN's edge wants a product
-token with a contact comment in the User-Agent — a bare token and a browser
-impersonation string both get a 403 — so that is what is sent; override with
+token with a contact comment in the User-Agent, a bare token and a browser
+impersonation string both get a 403, so that is what is sent; override with
 `RUCK_USER_AGENT`.
 
 ## Layout

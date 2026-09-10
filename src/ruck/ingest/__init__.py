@@ -89,7 +89,7 @@ def _sniff(text: str) -> str:
     if path.exists() and (".csv" in suffixes):
         # A rugbypy summary export is still a CSV; hand it to the rugbypy loader
         # so the error message is the useful one. But only when it actually
-        # looks like one — an event export missing a single required column
+        # looks like one, an event export missing a single required column
         # should get `load_csv`'s "missing required column" message, not a
         # lecture about box scores.
         try:

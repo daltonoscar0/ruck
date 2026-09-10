@@ -29,7 +29,7 @@ The rugby-specific section. An ACWR divides a recent window of load by a longer 
 
 | Check | Where | Severity | What |
 | --- | --- | --- | --- |
-| AC002 | `acwr/src/acwr/core.py:134` | critical | Coupled acute:chronic ratio — both windows end on the same day |
+| AC002 | `acwr/src/acwr/core.py:134` | critical | Coupled acute:chronic ratio, both windows end on the same day |
 | AC003 | `acwr/src/acwr/core.py:187` | high | Exponentially weighted ACWR shares every observation between numerator and denominator |
 | AC005 | `acwr/src/acwr/core.py:71` | low | ACWR compared against an imported sweet-spot threshold (3 thresholds in this file) |
 | AC005 | `acwr/tests/test_core.py:34` | low | ACWR compared against an imported sweet-spot threshold |
@@ -38,7 +38,7 @@ The single most useful thing to do with a coupled ratio is to recompute it uncou
 
 ## Findings
 
-### 1. AC002 — Coupled acute:chronic ratio — both windows end on the same day
+### 1. AC002, Coupled acute:chronic ratio, both windows end on the same day
 
 **critical** · Acute:chronic ratio · confidence high · detected by ruck
 
@@ -56,7 +56,7 @@ The two windows are slices of `series` that both end at the same index, with len
 
 End the chronic slice where the acute one begins, so the two share no observations: `series[max(0, i - chronic + 1) : max(0, i - acute + 1)]`. Divide by its own length rather than the acute one's. Compute both the coupled and uncoupled ratios for one season and compare before choosing.
 
-### 2. AC003 — Exponentially weighted ACWR shares every observation between numerator and denominator
+### 2. AC003, Exponentially weighted ACWR shares every observation between numerator and denominator
 
 **high** · Acute:chronic ratio · confidence high · detected by ruck
 
@@ -74,7 +74,7 @@ ewma_a / ewma_c
 
 Seed the chronic EWMA from load up to the start of the acute period, or report acute and chronic load as two features and let the model combine them.
 
-### 3. CV002 — train_test_split shuffles by default
+### 3. CV002, train_test_split shuffles by default
 
 **high** · Unpurged cross-validation · confidence medium · detected by ruck
 
@@ -92,7 +92,7 @@ train_test_split( X, y, test_size=0.2, random_state=42, shuffle=True )
 
 Pass `shuffle=False` and split on a date, or use a grouped, time-ordered splitter.
 
-### 4. CV002 — train_test_split shuffles by default
+### 4. CV002, train_test_split shuffles by default
 
 **high** · Unpurged cross-validation · confidence medium · detected by ruck
 
@@ -110,7 +110,7 @@ train_test_split(X, y, test_size=0.2, random_state=42, shuffle=True)
 
 Pass `shuffle=False` and split on a date, or use a grouped, time-ordered splitter.
 
-### 5. CV002 — train_test_split shuffles by default
+### 5. CV002, train_test_split shuffles by default
 
 **high** · Unpurged cross-validation · confidence medium · detected by ruck
 
@@ -128,7 +128,7 @@ train_test_split(X_all, y_all, test_size=0.2, random_state=42, shuffle=True)
 
 Pass `shuffle=False` and split on a date, or use a grouped, time-ordered splitter.
 
-### 6. AC005 — ACWR compared against an imported sweet-spot threshold (3 thresholds in this file)
+### 6. AC005, ACWR compared against an imported sweet-spot threshold (3 thresholds in this file)
 
 **low** · Acute:chronic ratio · confidence medium · detected by ruck
 
@@ -146,7 +146,7 @@ The threshold comes from studies whose ratio was coupled the same way this one i
 
 Fit any threshold on this squad's own uncoupled ratio, or drop it.
 
-### 7. AC005 — ACWR compared against an imported sweet-spot threshold
+### 7. AC005, ACWR compared against an imported sweet-spot threshold
 
 **low** · Acute:chronic ratio · confidence medium · detected by ruck
 
@@ -164,7 +164,7 @@ The threshold comes from studies whose ratio was coupled the same way this one i
 
 Fit any threshold on this squad's own uncoupled ratio, or drop it.
 
-## Purge list — GPS workload data
+## Purge list, GPS workload data
 
 Written for a squad's GPS and session-load export: one row per athlete per session or per day, columns for distance, high-speed running, player load, accelerations and session RPE, and an availability or injury record alongside it. Work down the list; each item is a thing to remove or change before refitting.
 
@@ -204,7 +204,7 @@ Keep out of `X`: the outcome itself, anything derived from it (`days_since_injur
 
 ### 5. Purge the fold boundary
 
-Split forward in time with an embargo of at least 28 days — the longest feature window in this repository — so no test row shares data with a training row, and group by athlete so the same player is not on both sides:
+Split forward in time with an embargo of at least 28 days, the longest feature window in this repository, so no test row shares data with a training row, and group by athlete so the same player is not on both sides:
 
 ```python
 splitter = TimeSeriesSplit(n_splits=5, gap=28)
