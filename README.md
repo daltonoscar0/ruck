@@ -1,5 +1,7 @@
 # ruck
 
+[![tests](https://github.com/daltonoscar0/ruck/actions/workflows/tests.yml/badge.svg)](https://github.com/daltonoscar0/ruck/actions/workflows/tests.yml)
+
 Rugby phase-play analyzer and injury-model auditor. Two subcommands, two users.
 
 **`ruck analyze`** takes a match event log and produces a PDF: a per-phase
